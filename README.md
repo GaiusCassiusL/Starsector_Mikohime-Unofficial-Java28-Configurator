@@ -1,6 +1,7 @@
 # Mikohime-Unofficial-Java28-Configurator
 Make Java 28 work with Starsector (probably)
 
+Note: If you have crashes with the game that look like Fast Rendering and you're using J28, hit me up first on discord (Gaius Cassius) before poking Genir. 
 
 
 **Mikohime Unofficial Configurator - Java 28-12ea**
