@@ -14,7 +14,7 @@ The configurator generates:
 
 Install **Mikoe26_261_FRChange** by Yue from the Unofficial Starsector Discord:
 
-[Download Mikoe26_261_FRChange](https://cdn.discordapp.com/attachments/1466341118261072028/1534729174185672825/Miko26_261_FRChange.zip?ex=6a8e3bed&is=6a8cea6d&hm=6312e17e80e4d07265c377beaea50b1bf3b7bc736916e09fd7e61c2e4cd6981d&)
+[Download Mikoe26_261_FRChange](https://cdn.discordapp.com/attachments/1466341118261072028/1534729174185672825/Miko26_261_FRChange.zip?ex=6a957c2d&is=6a942aad&hm=69d14854e55af3fa231a49b880c94095d03d6b4d337fa41e20850412ea9f8ccb&)
 
 ## Java Downloads
 
