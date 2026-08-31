@@ -1,20 +1,22 @@
 # Mikohime Unofficial Java 28 Configurator
 
-An unofficial replacement `Configure_Me.cmd` that adds Java 27 and Java 28 early-access support to Starsector.
+An unofficial, self-contained Mikohime package that adds Java 28 early-access support to Starsector.
+
+All required Mikohime files are included in the download now with approval from mod auther (Thanks Yue). The original Mikohime package does not need to be downloaded or installed separately.
 
 The configurator generates:
 
 - `Miko_Rouge.bat`
 - `Miko_Simple.txt`
+- `Miko_Info.txt`
 
 > [!IMPORTANT]
-> Currently supports Java 28 builds `28+11-ea` and `28+12-ea`.
+> Currently supports Java 28 builds `28+11-ea`, `28+12-ea`, and `28+13-ea`.
 
 ## Requirements
 
-Install **Mikoe26_261_FRChange** by Yue from the Unofficial Starsector Discord:
-
-[Download Mikoe26_261_FRChange](https://cdn.discordapp.com/attachments/1466341118261072028/1534729174185672825/Miko26_261_FRChange.zip?ex=6a957c2d&is=6a942aad&hm=69d14854e55af3fa231a49b880c94095d03d6b4d337fa41e20850412ea9f8ccb&)
+- A Windows installation of Starsector
+- One of the supported Java versions
 
 ## Java Downloads
 
@@ -27,37 +29,39 @@ Install **Mikoe26_261_FRChange** by Yue from the Unofficial Starsector Discord:
 
 ## Installation
 
-1. Install the original Miko package in your Starsector directory:
+1. Download this package and extract its contents into your Starsector directory beside `starsector.exe`.
 
    ```text
    .\Starsector
    ```
 
-2. Replace the package's original `Configure_Me.cmd` with the version from this repository.
+2. Keep Starsector's bundled `jre` folder. Do not delete or replace it.
 
-3. Keep Starsector's bundled `jre` folder.
-
-4. Extract Java 27, Java 28, or both into separate folders beside `starsector.exe`.
+3. To use Java 27 or Java 28, download and extract the desired JDK into a separate folder beside `starsector.exe`.
 
    Example:
 
    ```text
    .\Starsector\jdk-27+22
-   .\Starsector\jdk-28+12
+   .\Starsector\jdk-28+13
    ```
 
-5. Run `Configure_Me.cmd`.
+4. Run `Configure_Me.cmd`.
 
    > If Starsector is installed under `Program Files`, you may need to run the configurator as an administrator.
 
-6. Select a detected Java installation and configure the usual options, such as VRAM and Fast Rendering.
+6. Select a detected Java installation and configure the available memory, CPU, logging, Large Pages, Fast Rendering, FR Resource Cache, and StarsectorPrepatcher options.
 
 7. Launch Starsector using the generated `Miko_Rouge.bat`.
 
 ## Troubleshooting
 
-I don't know. Do it again or contact [**GaiusCassius**](https://discord.com/users/301544769811775488) on Discord.
+Run `Configure_Me.cmd` again and verify that the expected Java installation and optional components are detected.
+
+For additional help, I don't know. Contact [**GaiusCassius**](https://discord.com/users/301544769811775488) on Discord I guess.
 
 ## Disclaimer
 
-This is an unofficial configurator. It is not affiliated with the original Miko package authors, Starsector, or Adoptium.
+This is an unofficial community package. It is not affiliated with Starsector, Fractal Softworks, Adoptium, or the authors of optional third-party mods.
+
+The included Mikohime files are redistributed with permission from the mod author. Credit remains with the original modders and maintainers.
