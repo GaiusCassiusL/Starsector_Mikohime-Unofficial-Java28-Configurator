@@ -11,7 +11,7 @@ The configurator generates:
 - `Miko_Info.txt`
 
 > [!IMPORTANT]
-> Currently supports Java 28 builds `28+11-ea`, `28+12-ea`, and `28+13-ea`.
+> Currently adds support for Java 28 builds `28+11-ea`, `28+12-ea`, and `28+13-ea`.
 
 ## Requirements
 
@@ -26,6 +26,8 @@ The configurator generates:
 | Java 28 (`28+11-ea`) | [Download from Adoptium](https://github.com/adoptium/temurin28-binaries/releases/download/jdk-28%2B11-ea-beta/OpenJDK-jdk_x64_windows_hotspot_28_11-ea.zip) |
 | Java 28 (`28+12-ea`) | [Download from Adoptium](https://github.com/adoptium/temurin28-binaries/releases/download/jdk-28%2B12-ea-beta/OpenJDK-jdk_x64_windows_hotspot_28_12-ea.zip) |
 | Java 28 (`28+13-ea`) | [Download from Adoptium](https://github.com/adoptium/temurin28-binaries/releases/download/jdk-28%2B13-ea-beta/OpenJDK-jdk_x64_windows_hotspot_28_13-ea.zip) |
+
+~ Just use `28+13-ea` ~
 
 ## Installation
 
