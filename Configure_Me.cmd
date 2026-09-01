@@ -52,6 +52,8 @@ set "ResourceCacheAgent=-javaagent:fr-resource-cache-agent.jar=gameRoot=.,instal
 set "FastRenderingReleasesUrl=https://github.com/Halke1986/starsector-render/releases"
 set "ResourceCacheReleasesUrl=https://github.com/GaiusCassiusL/Starsector_FR-Resource-Cache"
 set "PrepatcherReleasesUrl=https://github.com/cyrrp/StarsectorPrepatcher/releases"
+set "VramOptimizerReleasesUrl=https://github.com/DeCEll-1/VramOptimizer"
+set "MinimumPrepatcherVersion=0.18.4"
 
 set "SavesPathArgument=-Dcom.fs.starfarer.settings.paths.saves=..\\saves"
 set "ScreenshotsPathArgument=-Dcom.fs.starfarer.settings.paths.screenshots=..\\screenshots"
@@ -99,6 +101,7 @@ set "MissingDownloadAvailable=No"
 if /I "!FastRenderingAvailable!"=="No" set "MissingDownloadAvailable=Yes"
 if /I "!ResourceCacheAvailable!"=="No" set "MissingDownloadAvailable=Yes"
 if "!PrepatcherCount!"=="0" set "MissingDownloadAvailable=Yes"
+if /I "!VramOptimizerAvailable!"=="No" set "MissingDownloadAvailable=Yes"
 if /I "!MissingDownloadAvailable!"=="Yes" echo D. Open missing component download page
 echo(
 if /I "!MissingDownloadAvailable!"=="Yes" (
@@ -277,11 +280,17 @@ if /I "!ResourceCacheAvailable!"=="Yes" (
 )
 if "!PrepatcherCount!"=="0" (
     echo   Prepatcher       : !ColorYellow!Not found!ColorReset!
+    if not "!IncompatiblePrepatcherCount!"=="0" echo     Compatibility  : !IncompatiblePrepatcherCount! older or unreadable installation^(s^) ignored
     echo     Download       : !PrepatcherReleasesUrl!
-) else if defined PrepatcherFolder (
-    echo   Prepatcher       : !ColorGreen!!PrepatcherFolder!!ColorReset!
 ) else (
-    echo   Prepatcher       : !PrepatcherCount! installations found; selection required
+    echo   Prepatcher       : !ColorGreen!Installed!ColorReset!
+    if not "!IncompatiblePrepatcherCount!"=="0" echo     Compatibility  : !IncompatiblePrepatcherCount! older or unreadable installation^(s^) ignored
+)
+if /I "!VramOptimizerAvailable!"=="Yes" (
+    echo   VRAM Optimizer   : !ColorGreen!Installed!ColorReset!
+) else (
+    echo   VRAM Optimizer   : !ColorYellow!Recommended!ColorReset!
+    echo     Download       : !VramOptimizerReleasesUrl!
 )
 if defined PhysicalMemoryMiB (
     set /a "PhysicalMemoryGiB=(PhysicalMemoryMiB+1023)/1024"
@@ -423,7 +432,7 @@ echo Select the installation to enable, or disable StarsectorPrepatcher:
 echo(
 set "DisplayedPrepatcherCount=!PrepatcherCount!"
 if !DisplayedPrepatcherCount! GTR 9 set "DisplayedPrepatcherCount=9"
-for /L %%N in (1,1,!DisplayedPrepatcherCount!) do echo %%N. Enable !PrepatcherCandidate[%%N]!
+for /L %%N in (1,1,!DisplayedPrepatcherCount!) do echo %%N. Enable !PrepatcherCandidate[%%N]! ^(v!PrepatcherCandidateVersion[%%N]!^)
 if !PrepatcherCount! GTR 9 echo Only the first nine installations can be selected.
 echo D. Disable StarsectorPrepatcher
 echo B. Back
@@ -550,6 +559,7 @@ set "MissingDownloadCount=0"
 if /I "!FastRenderingAvailable!"=="No" set /a MissingDownloadCount+=1
 if /I "!ResourceCacheAvailable!"=="No" set /a MissingDownloadCount+=1
 if "!PrepatcherCount!"=="0" set /a MissingDownloadCount+=1
+if /I "!VramOptimizerAvailable!"=="No" set /a MissingDownloadCount+=1
 if !MissingDownloadCount! GTR 1 goto :ChooseMissingDownload
 if /I "!FastRenderingAvailable!"=="No" (
     start "" "!FastRenderingReleasesUrl!"
@@ -564,6 +574,11 @@ if /I "!ResourceCacheAvailable!"=="No" (
 if "!PrepatcherCount!"=="0" (
     start "" "!PrepatcherReleasesUrl!"
     if errorlevel 1 echo !ColorRed!Unable to open the StarsectorPrepatcher download page.!ColorReset!
+    exit /b 0
+)
+if /I "!VramOptimizerAvailable!"=="No" (
+    start "" "!VramOptimizerReleasesUrl!"
+    if errorlevel 1 echo !ColorRed!Unable to open the VRAM Optimizer download page.!ColorReset!
 )
 exit /b 0
 
@@ -575,10 +590,13 @@ echo --------------------------------------------------------------------------
 echo 1. Fast Rendering
 echo 2. FR Resource Cache
 echo 3. StarsectorPrepatcher
+echo 4. VRAM Optimizer
 echo B. Back
-choice /c 123B /n /m "Select an option: "
-if errorlevel 4 exit /b 0
-if errorlevel 3 (
+choice /c 1234B /n /m "Select an option: "
+if errorlevel 5 exit /b 0
+if errorlevel 4 (
+    start "" "!VramOptimizerReleasesUrl!"
+) else if errorlevel 3 (
     start "" "!PrepatcherReleasesUrl!"
 ) else if errorlevel 2 (
     start "" "!ResourceCacheReleasesUrl!"
@@ -951,8 +969,15 @@ if exist "starsector-core\fr-resource-cache-agent.jar" (
     for %%F in ("starsector-core\fr-resource-cache-agent.jar") do if %%~zF GTR 0 set "ResourceCacheAvailable=Yes"
 )
 
-for /L %%N in (1,1,!PrepatcherCount!) do set "PrepatcherCandidate[%%N]="
+set "VramOptimizerAvailable=No"
+for /f %%V in ('powershell.exe -NoLogo -NoProfile -NonInteractive -Command "if (Test-Path 'mods') { foreach ($directory in Get-ChildItem 'mods' -Directory) { $metadata=Join-Path $directory.FullName 'mod_info.json'; if ((Test-Path -LiteralPath $metadata -PathType Leaf) -and ([IO.File]::ReadAllText($metadata) -match '(?im)\"id\"\s*:\s*\"VramOptimizer\"')) { 'Yes'; break } } }" 2^>nul') do set "VramOptimizerAvailable=%%V"
+
+for /L %%N in (1,1,!PrepatcherCount!) do (
+    set "PrepatcherCandidate[%%N]="
+    set "PrepatcherCandidateVersion[%%N]="
+)
 set "PrepatcherCount=0"
+set "IncompatiblePrepatcherCount=0"
 set "PrepatcherFolder="
 set "PrepatcherAgent="
 set "PrepatcherStatus=Disabled"
@@ -963,8 +988,20 @@ exit /b 0
 :AddPrepatcherCandidate
 if not exist "mods\%~1\agent\StarsectorPrepatcherAgent.jar" exit /b 0
 for %%F in ("mods\%~1\agent\StarsectorPrepatcherAgent.jar") do if %%~zF LEQ 0 exit /b 0
+set "PrepatcherMetadataPath=mods\%~1\mod_info.json"
+set "PrepatcherVersionStatus="
+set "DetectedPrepatcherVersion="
+for /f "tokens=1,2 delims=|" %%S in ('powershell.exe -NoLogo -NoProfile -NonInteractive -Command "$minimum=[version]$env:MinimumPrepatcherVersion; $path=$env:PrepatcherMetadataPath; if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { 'Unreadable|' } else { try { $raw=[string](Get-Content -LiteralPath $path -Raw | ConvertFrom-Json).version; $match=[regex]::Match($raw, '\d+(?:\.\d+){1,3}'); if (-not $match.Success) { 'Unreadable|' } else { $version=[version]$match.Value; if ($version -ge $minimum) { 'Compatible|' + $version.ToString() } else { 'Incompatible|' + $version.ToString() } } } catch { 'Unreadable|' } }" 2^>nul') do (
+    set "PrepatcherVersionStatus=%%S"
+    set "DetectedPrepatcherVersion=%%T"
+)
+if /I not "!PrepatcherVersionStatus!"=="Compatible" (
+    set /a IncompatiblePrepatcherCount+=1
+    exit /b 0
+)
 set /a PrepatcherCount+=1
 set "PrepatcherCandidate[!PrepatcherCount!]=%~1"
+set "PrepatcherCandidateVersion[!PrepatcherCount!]=!DetectedPrepatcherVersion!"
 exit /b 0
 
 :SetAutomaticPrepatcherSelection

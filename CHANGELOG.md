@@ -1,5 +1,26 @@
 # Changelog
 
+## [v0.6] - 2026-09-01
+
+### Added
+
+- Added StarsectorPrepatcher version detection using each installation's `mod_info.json`.
+- Added a minimum supported StarsectorPrepatcher version of `0.18.4`.
+- Added version numbers beside compatible StarsectorPrepatcher installations in the selection menu.
+- Added informational detection for VRAM Optimizer.
+- Added a recommendation and GitHub download link when VRAM Optimizer is not installed.
+- Added VRAM Optimizer to the missing-component download menu.
+
+### Changed
+
+- Simplified the detected-environment display so compatible StarsectorPrepatcher installations are shown as **Installed**.
+- Changed StarsectorPrepatcher detection to exclude versions older than `0.18.4`.
+
+### Fixed
+
+- Prevented incompatible StarsectorPrepatcher versions from being offered for activation.
+- Prevented installations with missing or unreadable StarsectorPrepatcher version metadata from being treated as compatible.
+
 ## [v0.5] - 2026-08-31
 
 ### Added
@@ -141,6 +162,7 @@
 
 - Initial release.
 
+[v0.6]: https://github.com/GaiusCassiusL/Starsector_Mikohime-Unofficial-Java28-Configurator/releases/tag/v0.6
 [v0.5]: https://github.com/GaiusCassiusL/Starsector_Mikohime-Unofficial-Java28-Configurator/releases/tag/v0.5
 [v0.4]: https://github.com/GaiusCassiusL/Starsector_Mikohime-Unofficial-Java28-Configurator/releases/tag/v0.4
 [v0.3]: https://github.com/GaiusCassiusL/Starsector_Mikohime-Unofficial-Java28-Configurator/releases/tag/v0.3
