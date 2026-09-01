@@ -1,0 +1,7 @@
+package com.thoughtworks.xstream.security;
+
+public class ForbiddenClassException extends AbstractSecurityException {
+   public ForbiddenClassException(Class type) {
+      super(type == null ? "null" : type.getName());
+   }
+}

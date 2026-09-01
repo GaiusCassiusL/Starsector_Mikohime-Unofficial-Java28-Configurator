@@ -1,0 +1,76 @@
+Manifest-Version: 1.0
+Archiver-Version: Plexus Archiver
+Created-By: Apache Maven Bundle Plugin
+Built-By: joehni
+Build-Jdk: 1.8.0_432
+Specification-Title: XStream Core
+Specification-Vendor: XStream
+Implementation-Title: XStream Core
+Implementation-Version: 1.4.21
+Implementation-Vendor-Id: com.thoughtworks.xstream
+Implementation-Vendor: XStream
+Bundle-License: BSD-3-Clause
+Specification-Version: 1.4
+X-Build-Os: Linux
+X-Build-Time: 2024-11-07T19:13:18Z
+X-Builder: Maven 3.9.9
+X-Compile-Source: 1.4
+X-Compile-Target: 1.4
+Bnd-LastModified: 1731006826801
+Bundle-Description: XStream is a serialization library from Java objec
+ ts to XML and back.
+Bundle-DocURL: http://x-stream.github.io
+Bundle-ManifestVersion: 2
+Bundle-Name: XStream Core
+Bundle-SymbolicName: xstream
+Bundle-Vendor: XStream
+Bundle-Version: 1.4.21
+Export-Package: com.thoughtworks.xstream;version="1.4.21",com.thoughtw
+ orks.xstream.annotations;version="1.4.21",com.thoughtworks.xstream.co
+ nverters;version="1.4.21",com.thoughtworks.xstream.converters.basic;v
+ ersion="1.4.21",com.thoughtworks.xstream.converters.collections;versi
+ on="1.4.21",com.thoughtworks.xstream.converters.enums;version="1.4.21
+ ",com.thoughtworks.xstream.converters.extended;version="1.4.21",com.t
+ houghtworks.xstream.converters.javabean;version="1.4.21",com.thoughtw
+ orks.xstream.converters.reflection;version="1.4.21",com.thoughtworks.
+ xstream.converters.time;version="1.4.21",com.thoughtworks.xstream.cor
+ e;version="1.4.21",com.thoughtworks.xstream.io;version="1.4.21",com.t
+ houghtworks.xstream.io.binary;version="1.4.21",com.thoughtworks.xstre
+ am.io.copy;version="1.4.21",com.thoughtworks.xstream.io.json;version=
+ "1.4.21",com.thoughtworks.xstream.io.naming;version="1.4.21",com.thou
+ ghtworks.xstream.io.path;version="1.4.21",com.thoughtworks.xstream.io
+ .xml;version="1.4.21",com.thoughtworks.xstream.io.xml.xppdom;version=
+ "1.4.21",com.thoughtworks.xstream.mapper;version="1.4.21",com.thought
+ works.xstream.persistence;version="1.4.21",com.thoughtworks.xstream.s
+ ecurity;version="1.4.21"
+Import-Package: org.xmlpull.mxp1;resolution:=optional,org.xmlpull.v1;r
+ esolution:=optional,io.github.xstream.mxparser;resolution:=optional;v
+ ersion="[1.2,2)",com.ctc.wstx.stax;resolution:=optional;version="[5.4
+ ,6)",com.ibm.xml.xlxp.api.stax;resolution:=optional,com.sun.xml.inter
+ nal.stream;resolution:=optional,javax.activation;resolution:=optional
+ ,javax.security.auth;resolution:=optional,javax.swing;resolution:=opt
+ ional,javax.swing.plaf;resolution:=optional,javax.xml.bind;resolution
+ :=optional;version="[2.3,3)",javax.xml.datatype;resolution:=optional,
+ javax.xml.namespace;resolution:=optional,javax.xml.parsers;resolution
+ :=optional,javax.xml.stream;resolution:=optional,javax.xml.transform;
+ resolution:=optional,javax.xml.transform.sax;resolution:=optional,jav
+ ax.xml.transform.stream;resolution:=optional,org.xml.sax;resolution:=
+ optional,org.xml.sax.helpers;resolution:=optional,sun.misc;resolution
+ :=optional,com.bea.xml.stream;resolution:=optional,net.sf.cglib.proxy
+ ;resolution:=optional,nu.xom;resolution:=optional,org.codehaus.jettis
+ on;version="[1.5,2)";resolution:=optional,org.codehaus.jettison.mappe
+ d;version="[1.5,2)";resolution:=optional,org.dom4j;resolution:=option
+ al,org.dom4j.io;resolution:=optional,org.dom4j.tree;resolution:=optio
+ nal,org.jdom;resolution:=optional,org.jdom.input;resolution:=optional
+ ,org.jdom2;resolution:=optional,org.jdom2.input;resolution:=optional,
+ org.joda.time;version="[1.6,2)";resolution:=optional,org.joda.time.fo
+ rmat;version="[1.6,2)";resolution:=optional,org.kxml2.io;resolution:=
+ optional,org.w3c.dom;resolution:=optional
+JAVA_1_4_HOME: /opt/blackdown-jdk-1.4.2.03
+JAVA_1_5_HOME: /opt/sun-jdk-1.5.0.22
+JAVA_1_6_HOME: /opt/sun-jdk-1.6.0.45
+JAVA_1_7_HOME: /opt/oracle-jdk-bin-1.7.0.80
+JAVA_1_8_HOME: /opt/oracle-jdk-bin-1.8.0.202
+JAVA_9_HOME: /opt/oracle-jdk-bin-9.0.4
+Tool: Bnd-2.4.1.201501161923
+

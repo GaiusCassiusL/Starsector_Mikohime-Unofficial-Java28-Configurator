@@ -51,9 +51,18 @@ set "FastRenderingClasspath=-classpath fr.jar;%BaseClassPath%"
 set "ResourceCacheAgent=-javaagent:fr-resource-cache-agent.jar=gameRoot=.,installRoot=..,cacheDir=..\\fr-resource-cache,flushDelaySeconds=30,memoryCacheMiB=128,maxFileSize=1048576"
 set "FastRenderingReleasesUrl=https://github.com/Halke1986/starsector-render/releases"
 set "ResourceCacheReleasesUrl=https://github.com/GaiusCassiusL/Starsector_FR-Resource-Cache"
+set "ResourceCacheLatestReleaseApi=https://api.github.com/repos/GaiusCassiusL/Starsector_FR-Resource-Cache/releases/latest"
+set "ResourceCacheAssetUrlPrefix=https://github.com/GaiusCassiusL/Starsector_FR-Resource-Cache/releases/download/"
+set "ResourceCacheDestination=starsector-core\fr-resource-cache-agent.jar"
 set "PrepatcherReleasesUrl=https://github.com/cyrrp/StarsectorPrepatcher/releases"
 set "VramOptimizerReleasesUrl=https://github.com/DeCEll-1/VramOptimizer"
 set "MinimumPrepatcherVersion=0.18.4"
+set "Jdk27DownloadUrl=https://github.com/adoptium/temurin27-binaries/releases/download/jdk-27%%2B22-ea-beta/OpenJDK-jdk_x64_windows_hotspot_27_22-ea.zip"
+set "Jdk27Sha256=64a50fce3fa5f81869c16ba33549e743eaa816c5676fdc041f50b4a5019ff7d8"
+set "Jdk27Folder=jdk-27+22"
+set "Jdk28DownloadUrl=https://github.com/adoptium/temurin28-binaries/releases/download/jdk-28%%2B13-ea-beta/OpenJDK-jdk_x64_windows_hotspot_28_13-ea.zip"
+set "Jdk28Sha256=cf8e321db9fd0167723d38e9cb7737a9578a3dcb0683aac67e35193312f1ed13"
+set "Jdk28Folder=jdk-28+13"
 
 set "SavesPathArgument=-Dcom.fs.starfarer.settings.paths.saves=..\\saves"
 set "ScreenshotsPathArgument=-Dcom.fs.starfarer.settings.paths.screenshots=..\\screenshots"
@@ -97,6 +106,8 @@ echo 1. Configure Java and launcher
 echo 2. Change launcher background
 echo 3. Refresh detected components
 echo 4. Exit
+if /I "!ModernJavaAvailable!"=="No" echo J. Download and install Java
+if /I "!ResourceCacheAvailable!"=="No" echo R. Download and install FR Resource Cache
 set "MissingDownloadAvailable=No"
 if /I "!FastRenderingAvailable!"=="No" set "MissingDownloadAvailable=Yes"
 if /I "!ResourceCacheAvailable!"=="No" set "MissingDownloadAvailable=Yes"
@@ -104,14 +115,58 @@ if "!PrepatcherCount!"=="0" set "MissingDownloadAvailable=Yes"
 if /I "!VramOptimizerAvailable!"=="No" set "MissingDownloadAvailable=Yes"
 if /I "!MissingDownloadAvailable!"=="Yes" echo D. Open missing component download page
 echo(
-if /I "!MissingDownloadAvailable!"=="Yes" (
-    choice /c 1234D /n /m "Select an option: "
-    if errorlevel 5 (
-        call :OpenMissingDownloadPage
-        goto :MainMenu
+if /I "!ModernJavaAvailable!"=="No" (
+    if /I "!ResourceCacheAvailable!"=="No" (
+        choice /c 1234JDR /n /m "Select an option: "
+        if errorlevel 7 (
+            call :InstallResourceCache
+            goto :MainMenu
+        )
+        if errorlevel 6 (
+            call :OpenMissingDownloadPage
+            goto :MainMenu
+        )
+        if errorlevel 5 (
+            call :InstallJavaMenu
+            goto :MainMenu
+        )
+    ) else if /I "!MissingDownloadAvailable!"=="Yes" (
+        choice /c 1234JD /n /m "Select an option: "
+        if errorlevel 6 (
+            call :OpenMissingDownloadPage
+            goto :MainMenu
+        )
+        if errorlevel 5 (
+            call :InstallJavaMenu
+            goto :MainMenu
+        )
+    ) else (
+        choice /c 1234J /n /m "Select an option: "
+        if errorlevel 5 (
+            call :InstallJavaMenu
+            goto :MainMenu
+        )
     )
 ) else (
-    choice /c 1234 /n /m "Select an option: "
+    if /I "!ResourceCacheAvailable!"=="No" (
+        choice /c 1234DR /n /m "Select an option: "
+        if errorlevel 6 (
+            call :InstallResourceCache
+            goto :MainMenu
+        )
+        if errorlevel 5 (
+            call :OpenMissingDownloadPage
+            goto :MainMenu
+        )
+    ) else if /I "!MissingDownloadAvailable!"=="Yes" (
+        choice /c 1234D /n /m "Select an option: "
+        if errorlevel 5 (
+            call :OpenMissingDownloadPage
+            goto :MainMenu
+        )
+    ) else (
+        choice /c 1234 /n /m "Select an option: "
+    )
 )
 if errorlevel 4 goto :ExitConfigurator
 if errorlevel 3 (
@@ -234,6 +289,8 @@ call :RefreshEnvironment
 goto :MainMenu
 
 :ExitConfigurator
+call :CleanupJdkInstallation
+call :CleanupResourceCacheInstallation
 call :CleanupPendingFiles
 call :ReleaseConfiguratorLock
 exit /b 0
@@ -266,22 +323,29 @@ exit /b 0
 :PrintDetectedEnvironment
 echo Detected environment:
 echo   Java installations : !JavaOptionCount!
+if /I "!ModernJavaAvailable!"=="Yes" (
+    echo   Java 27 or 28     : !ColorGreen!Installed!ColorReset!
+) else (
+    echo   Java 27 or 28     : !ColorYellow!Not found!ColorReset!
+    echo     Recommendation : Download and install Java 27 or Java 28 ^(select J below^)
+)
 if /I "!FastRenderingAvailable!"=="Yes" (
     echo   Fast Rendering   : !ColorGreen!Installed!ColorReset!
 ) else (
     echo   Fast Rendering   : !ColorYellow!Not found!ColorReset!
-    echo     Download       : !FastRenderingReleasesUrl!
+    echo     Repository     : !FastRenderingReleasesUrl!
 )
 if /I "!ResourceCacheAvailable!"=="Yes" (
     echo   FR Resource Cache: !ColorGreen!Installed!ColorReset!
 ) else (
     echo   FR Resource Cache: !ColorYellow!Not found!ColorReset!
-    echo     Download       : !ResourceCacheReleasesUrl!
+    echo     Repository     : !ResourceCacheReleasesUrl!
+    echo     Install        : Select R below
 )
 if "!PrepatcherCount!"=="0" (
     echo   Prepatcher       : !ColorYellow!Not found!ColorReset!
     if not "!IncompatiblePrepatcherCount!"=="0" echo     Compatibility  : !IncompatiblePrepatcherCount! older or unreadable installation^(s^) ignored
-    echo     Download       : !PrepatcherReleasesUrl!
+    echo     Repository     : !PrepatcherReleasesUrl!
 ) else (
     echo   Prepatcher       : !ColorGreen!Installed!ColorReset!
     if not "!IncompatiblePrepatcherCount!"=="0" echo     Compatibility  : !IncompatiblePrepatcherCount! older or unreadable installation^(s^) ignored
@@ -290,7 +354,7 @@ if /I "!VramOptimizerAvailable!"=="Yes" (
     echo   VRAM Optimizer   : !ColorGreen!Installed!ColorReset!
 ) else (
     echo   VRAM Optimizer   : !ColorYellow!Recommended!ColorReset!
-    echo     Download       : !VramOptimizerReleasesUrl!
+    echo     Repository     : !VramOptimizerReleasesUrl!
 )
 if defined PhysicalMemoryMiB (
     set /a "PhysicalMemoryGiB=(PhysicalMemoryMiB+1023)/1024"
@@ -321,6 +385,199 @@ set "OldCpuMode=No"
 set "LargePagesEnabled=No"
 set "LoggingMode=Full"
 call :SetAutomaticPrepatcherSelection
+exit /b 0
+
+:InstallJavaMenu
+cls
+call :PrintHeader
+echo Download and install Java
+echo --------------------------------------------------------------------------
+echo The selected JDK will be downloaded and extracted beside starsector.exe.
+echo No system-wide Java installation will be performed.
+echo(
+echo 1. Java 27 ^(27+22-ea, approximately 137 MB^)
+echo 2. Java 28 ^(28+13-ea, approximately 153 MB^)
+echo B. Back
+echo(
+choice /c 12B /n /m "Select an option: "
+if errorlevel 3 exit /b 0
+if errorlevel 2 (
+    set "SelectedJdkName=Java 28 (28+13-ea)"
+    set "SelectedJdkMajor=28"
+    set "SelectedJdkUrl=!Jdk28DownloadUrl!"
+    set "SelectedJdkSha256=!Jdk28Sha256!"
+    set "SelectedJdkFolder=!Jdk28Folder!"
+) else (
+    set "SelectedJdkName=Java 27 (27+22-ea)"
+    set "SelectedJdkMajor=27"
+    set "SelectedJdkUrl=!Jdk27DownloadUrl!"
+    set "SelectedJdkSha256=!Jdk27Sha256!"
+    set "SelectedJdkFolder=!Jdk27Folder!"
+)
+
+if exist "!SelectedJdkFolder!\bin\java.exe" (
+    call :GetJavaMajor "!SelectedJdkFolder!" ExistingJdkMajor
+    if not errorlevel 1 if "!ExistingJdkMajor!"=="!SelectedJdkMajor!" (
+        echo(
+        echo !ColorGreen!!SelectedJdkName! is already installed.!ColorReset!
+        pause
+        call :RefreshEnvironment
+        exit /b 0
+    )
+)
+if exist "!SelectedJdkFolder!\." (
+    echo(
+    echo !ColorRed!The destination folder already exists but is not the expected JDK:!ColorReset!
+    echo   !SelectedJdkFolder!
+    echo Rename or remove that folder before trying again.
+    pause
+    exit /b 1
+)
+
+echo(
+echo Install !SelectedJdkName! into:
+echo   !CD!\!SelectedJdkFolder!
+echo(
+echo 1. Download and install
+echo 2. Cancel
+choice /c 12 /n /m "Select an option: "
+if errorlevel 2 exit /b 0
+
+call :DownloadSelectedJdk
+if errorlevel 1 (
+    echo(
+    echo !ColorRed!Java installation failed.!ColorReset!
+    echo No existing Java installation was changed.
+    pause
+    exit /b 1
+)
+
+call :RefreshEnvironment
+echo(
+echo !ColorGreen!!SelectedJdkName! was installed successfully.!ColorReset!
+pause
+exit /b 0
+
+:DownloadSelectedJdk
+set "JdkInstallRoot=.jdk-install-!TransactionId!"
+set "JdkDownloadFile=!JdkInstallRoot!\jdk.zip"
+set "JdkExtractFolder=!JdkInstallRoot!\extracted"
+set "JdkDestinationCreated=No"
+call :CleanupJdkInstallation
+mkdir "!JdkExtractFolder!" 2>nul
+if errorlevel 1 exit /b 1
+
+echo(
+echo Downloading !SelectedJdkName!...
+echo This may take several minutes.
+
+set "JDK_INSTALL_URL=!SelectedJdkUrl!"
+set "JDK_INSTALL_HASH=!SelectedJdkSha256!"
+set "JDK_INSTALL_ZIP=!CD!\!JdkDownloadFile!"
+set "JDK_INSTALL_EXTRACT=!CD!\!JdkExtractFolder!"
+set "JDK_INSTALL_DESTINATION=!CD!\!SelectedJdkFolder!"
+set "JDK_INSTALL_MAJOR=!SelectedJdkMajor!"
+
+powershell.exe -NoLogo -NoProfile -NonInteractive -Command "$ErrorActionPreference='Stop'; $ProgressPreference='SilentlyContinue'; Invoke-WebRequest -Uri $env:JDK_INSTALL_URL -OutFile $env:JDK_INSTALL_ZIP; $stream=[IO.File]::OpenRead($env:JDK_INSTALL_ZIP); try { $sha=[Security.Cryptography.SHA256]::Create(); try { $actualHash=([BitConverter]::ToString($sha.ComputeHash($stream))).Replace('-','') } finally { $sha.Dispose() } } finally { $stream.Dispose() }; if ($actualHash -ne $env:JDK_INSTALL_HASH) { throw 'The downloaded JDK checksum does not match.' }; Add-Type -AssemblyName System.IO.Compression.FileSystem; [IO.Compression.ZipFile]::ExtractToDirectory($env:JDK_INSTALL_ZIP,$env:JDK_INSTALL_EXTRACT); $javaFiles=@(Get-ChildItem -LiteralPath $env:JDK_INSTALL_EXTRACT -Filter java.exe -Recurse | Where-Object { -not $_.PSIsContainer -and $_.Directory.Name -eq 'bin' }); if ($javaFiles.Count -ne 1) { throw 'Unable to locate exactly one JDK installation in the archive.' }; $java=$javaFiles[0]; $startInfo=New-Object Diagnostics.ProcessStartInfo; $startInfo.FileName=$java.FullName; $startInfo.Arguments='-version'; $startInfo.UseShellExecute=$false; $startInfo.RedirectStandardError=$true; $startInfo.RedirectStandardOutput=$true; $process=[Diagnostics.Process]::Start($startInfo); $versionText=$process.StandardError.ReadToEnd() + $process.StandardOutput.ReadToEnd(); $process.WaitForExit(); if ($process.ExitCode -ne 0) { throw 'The downloaded Java executable failed its version check.' }; $versionMatch=[regex]::Match($versionText, 'version \"(\d+)'); if (-not $versionMatch.Success -or $versionMatch.Groups[1].Value -ne $env:JDK_INSTALL_MAJOR) { throw 'The downloaded archive contains the wrong Java version.' }; $jdkHome=$java.Directory.Parent.FullName; if (Test-Path -LiteralPath $env:JDK_INSTALL_DESTINATION) { throw 'The JDK destination was created while the download was running.' }; [IO.Directory]::Move($jdkHome,$env:JDK_INSTALL_DESTINATION)"
+if errorlevel 1 (
+    call :CleanupJdkInstallation
+    exit /b 1
+)
+set "JdkDestinationCreated=Yes"
+call :CleanupJdkInstallation
+
+if not exist "!SelectedJdkFolder!\bin\java.exe" goto :DownloadedJdkInvalid
+call :GetJavaMajor "!SelectedJdkFolder!" InstalledJdkMajor
+if errorlevel 1 goto :DownloadedJdkInvalid
+if not "!InstalledJdkMajor!"=="!SelectedJdkMajor!" goto :DownloadedJdkInvalid
+exit /b 0
+
+:DownloadedJdkInvalid
+if /I "!JdkDestinationCreated!"=="Yes" powershell.exe -NoLogo -NoProfile -NonInteractive -Command "Remove-Item -LiteralPath $env:JDK_INSTALL_DESTINATION -Recurse -Force" 2>nul
+exit /b 1
+
+:CleanupJdkInstallation
+if defined JdkInstallRoot if exist "!JdkInstallRoot!\." rmdir /S /Q "!JdkInstallRoot!" 2>nul
+exit /b 0
+
+:InstallResourceCache
+cls
+call :PrintHeader
+echo Download and install FR Resource Cache
+echo --------------------------------------------------------------------------
+if exist "!ResourceCacheDestination!" (
+    for %%F in ("!ResourceCacheDestination!") do if %%~zF GTR 0 (
+        echo !ColorGreen!FR Resource Cache is already installed.!ColorReset!
+        pause
+        call :RefreshEnvironment
+        exit /b 0
+    )
+    echo !ColorRed!The destination file already exists but is empty or invalid:!ColorReset!
+    echo   !ResourceCacheDestination!
+    echo Remove or rename that file before trying again.
+    pause
+    exit /b 1
+)
+echo The latest published release will be downloaded from:
+echo   !ResourceCacheReleasesUrl!
+echo(
+echo The release digest and packaged agent JAR will be validated before the
+echo JAR is installed into starsector-core.
+echo(
+echo 1. Download and install
+echo 2. Cancel
+choice /c 12 /n /m "Select an option: "
+if errorlevel 2 exit /b 0
+
+call :DownloadLatestResourceCache
+if errorlevel 1 (
+    echo(
+    echo !ColorRed!FR Resource Cache installation failed.!ColorReset!
+    echo No existing FR Resource Cache installation was changed.
+    pause
+    exit /b 1
+)
+
+call :RefreshEnvironment
+if /I not "!ResourceCacheAvailable!"=="Yes" (
+    echo(
+    echo !ColorRed!The installed FR Resource Cache could not be detected.!ColorReset!
+    pause
+    exit /b 1
+)
+echo(
+echo !ColorGreen!The latest FR Resource Cache release was installed successfully.!ColorReset!
+pause
+exit /b 0
+
+:DownloadLatestResourceCache
+set "ResourceCacheInstallRoot=.resource-cache-install-!TransactionId!"
+set "ResourceCacheDownloadFile=!ResourceCacheInstallRoot!\release.zip"
+set "ResourceCacheStagedJar=!ResourceCacheInstallRoot!\fr-resource-cache-agent.jar"
+call :CleanupResourceCacheInstallation
+mkdir "!ResourceCacheInstallRoot!" 2>nul
+if errorlevel 1 exit /b 1
+
+echo(
+echo Finding the latest FR Resource Cache release...
+set "RESOURCE_CACHE_API=!ResourceCacheLatestReleaseApi!"
+set "RESOURCE_CACHE_ASSET_PREFIX=!ResourceCacheAssetUrlPrefix!"
+set "RESOURCE_CACHE_ZIP=!CD!\!ResourceCacheDownloadFile!"
+set "RESOURCE_CACHE_STAGED_JAR=!CD!\!ResourceCacheStagedJar!"
+set "RESOURCE_CACHE_DESTINATION=!CD!\!ResourceCacheDestination!"
+
+powershell.exe -NoLogo -NoProfile -NonInteractive -Command "$ErrorActionPreference='Stop'; $ProgressPreference='SilentlyContinue'; [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; $headers=@{ Accept='application/vnd.github+json'; 'User-Agent'='Mikohime-Java-Configurator'; 'X-GitHub-Api-Version'='2022-11-28' }; $release=Invoke-RestMethod -Uri $env:RESOURCE_CACHE_API -Headers $headers; $assets=@($release.assets | Where-Object { $_.name -like '*.zip' }); if ($assets.Count -ne 1) { throw 'The latest release must contain exactly one ZIP asset.' }; $asset=$assets[0]; if (-not ([string]$asset.browser_download_url).StartsWith($env:RESOURCE_CACHE_ASSET_PREFIX,[StringComparison]::OrdinalIgnoreCase)) { throw 'The release asset URL is not trusted.' }; $digestMatch=[regex]::Match([string]$asset.digest,'^sha256:([0-9a-fA-F]{64})$'); if (-not $digestMatch.Success) { throw 'GitHub did not provide a valid SHA-256 digest for the release asset.' }; if ([long]$asset.size -le 0 -or [long]$asset.size -gt 10MB) { throw 'The release asset size is invalid.' }; Invoke-WebRequest -UseBasicParsing -Uri $asset.browser_download_url -OutFile $env:RESOURCE_CACHE_ZIP; $stream=[IO.File]::OpenRead($env:RESOURCE_CACHE_ZIP); try { $sha=[Security.Cryptography.SHA256]::Create(); try { $actualHash=([BitConverter]::ToString($sha.ComputeHash($stream))).Replace('-','') } finally { $sha.Dispose() } } finally { $stream.Dispose() }; if ($actualHash -ne $digestMatch.Groups[1].Value) { throw 'The downloaded release checksum does not match GitHub''s digest.' }; Add-Type -AssemblyName System.IO.Compression.FileSystem; $archive=[IO.Compression.ZipFile]::OpenRead($env:RESOURCE_CACHE_ZIP); try { $entries=@($archive.Entries | Where-Object { [IO.Path]::GetFileName($_.FullName) -eq 'fr-resource-cache-agent.jar' -and $_.Length -gt 0 -and $_.Length -le 10MB }); if ($entries.Count -ne 1) { throw 'The release does not contain exactly one valid agent JAR.' }; $input=$entries[0].Open(); $output=[IO.File]::Create($env:RESOURCE_CACHE_STAGED_JAR); try { $input.CopyTo($output) } finally { $output.Dispose(); $input.Dispose() } } finally { $archive.Dispose() }; $jar=[IO.Compression.ZipFile]::OpenRead($env:RESOURCE_CACHE_STAGED_JAR); try { $manifest=$jar.GetEntry('META-INF/MANIFEST.MF'); if ($null -eq $manifest) { throw 'The agent JAR has no manifest.' }; $reader=New-Object IO.StreamReader($manifest.Open()); try { $manifestText=$reader.ReadToEnd() } finally { $reader.Dispose() }; if ($manifestText -notmatch '(?m)^Premain-Class:\s*dev\.frresourcecache\.FrResourceCacheAgent\s*$') { throw 'The agent JAR manifest is not valid.' } } finally { $jar.Dispose() }; if (Test-Path -LiteralPath $env:RESOURCE_CACHE_DESTINATION) { throw 'The destination file was created while the download was running.' }; [IO.File]::Move($env:RESOURCE_CACHE_STAGED_JAR,$env:RESOURCE_CACHE_DESTINATION)"
+if errorlevel 1 (
+    call :CleanupResourceCacheInstallation
+    exit /b 1
+)
+call :CleanupResourceCacheInstallation
+if not exist "!ResourceCacheDestination!" exit /b 1
+for %%F in ("!ResourceCacheDestination!") do if %%~zF LEQ 0 exit /b 1
+exit /b 0
+
+:CleanupResourceCacheInstallation
+if defined ResourceCacheInstallRoot if exist "!ResourceCacheInstallRoot!\." rmdir /S /Q "!ResourceCacheInstallRoot!" 2>nul
 exit /b 0
 
 :ChooseJava
@@ -525,15 +782,20 @@ if /I not "!ResourceCacheAvailable!"=="Yes" (
     echo Download: !ResourceCacheReleasesUrl!
     echo(
     echo C. Continue
+    echo R. Download and install FR Resource Cache
     echo D. Open FR Resource Cache download page
     echo B. Back
     echo X. Cancel and return to the main menu
-    choice /c CDBX /n /m "Select an option: "
-    if errorlevel 4 exit /b 2
-    if errorlevel 3 goto :ChooseRenderingAgain
-    if errorlevel 2 (
+    choice /c CRDBX /n /m "Select an option: "
+    if errorlevel 5 exit /b 2
+    if errorlevel 4 goto :ChooseRenderingAgain
+    if errorlevel 3 (
         start "" "!ResourceCacheReleasesUrl!"
         if errorlevel 1 echo !ColorRed!Unable to open the FR Resource Cache download page.!ColorReset!
+        goto :ChooseRenderingAgain
+    )
+    if errorlevel 2 (
+        call :InstallResourceCache
         goto :ChooseRenderingAgain
     )
     exit /b 0
@@ -915,6 +1177,7 @@ for /L %%N in (1,1,!JavaOptionCount!) do (
     set "JavaOptionDescription[%%N]="
 )
 set "JavaOptionCount=0"
+set "ModernJavaAvailable=No"
 if exist "jre\bin\java.exe" call :ProbeJavaFolder "jre" "Starsector bundled Java"
 for /f "usebackq delims=" %%D in (`powershell.exe -NoLogo -NoProfile -NonInteractive -Command "$bad=[char[]](33,34,37,38,40,41,60,62,94,124); Get-ChildItem -Directory -Filter 'jdk-27*' | Where-Object { $_.Name.IndexOfAny($bad) -lt 0 } | ForEach-Object Name" 2^>nul`) do if exist "%%D\bin\java.exe" call :ProbeJavaFolder "%%D" "Java installation"
 for /f "usebackq delims=" %%D in (`powershell.exe -NoLogo -NoProfile -NonInteractive -Command "$bad=[char[]](33,34,37,38,40,41,60,62,94,124); Get-ChildItem -Directory -Filter 'jdk-28*' | Where-Object { $_.Name.IndexOfAny($bad) -lt 0 } | ForEach-Object Name" 2^>nul`) do if exist "%%D\bin\java.exe" call :ProbeJavaFolder "%%D" "Java installation"
@@ -930,6 +1193,8 @@ call :GetJavaMajor "%~1" ProbedJavaMajor
 if errorlevel 1 exit /b 0
 call :IsSupportedJavaMajor "!ProbedJavaMajor!"
 if errorlevel 1 exit /b 0
+if "!ProbedJavaMajor!"=="27" set "ModernJavaAvailable=Yes"
+if "!ProbedJavaMajor!"=="28" set "ModernJavaAvailable=Yes"
 set /a JavaOptionCount+=1
 set "JavaOptionPath[!JavaOptionCount!]=%~1"
 set "JavaOptionVersion[!JavaOptionCount!]=!ProbedJavaMajor!"

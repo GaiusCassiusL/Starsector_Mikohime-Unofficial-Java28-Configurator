@@ -1,5 +1,55 @@
 # Changelog
 
+## [v0.7] - 2026-09-01
+
+### Added
+
+- Added local installation options for Java 27 `27+22-ea` and Java 28 `28+13-ea`.
+- Added checksum, archive and Java-version validation for downloaded JDKs.
+- Added installation of the latest FR Resource Cache release directly from the configurator.
+- Added validation of FR Resource Cache release digests, packages and Java-agent manifests.
+- Added **J** and **R** menu options for installing Java and FR Resource Cache.
+- Added Java 27/28 availability detection and installation recommendations.
+
+### Changed
+
+- Updated the bundled JOrbis, JInput, LWJGL, LWJGL Util, Log4j and XStream libraries.
+- Improved controller event queues and component lookup performance.
+- Reduced temporary allocations during OGG Vorbis decoding.
+- Changed Java and FR Resource Cache installations to use temporary staging before moving validated files into place.
+- Hid the Java installation option when Java 27 or Java 28 is already available.
+- Made configurator menu options adjust dynamically to detected components.
+- Made FR Resource Cache installation available from both the main menu and rendering setup.
+- Changed missing-component links to display **Repository:** instead of **Download:**.
+
+### Fixed
+
+- Fixed LWJGL native-library and Windows-display initialization order.
+- Fixed reflective linkage failures involving `PowerManagementEventException`.
+- Fixed JOrbis closing active streams after successful construction.
+- Fixed failed audio initialization leaving incomplete objects.
+- Fixed OGG end-of-file handling corrupting synchronization state.
+- Added protection against malformed Vorbis codebooks, floors and residues.
+- Fixed truncated controller plugin class reads.
+- Fixed resource leaks involving JARs, class files, native devices and temporary windows.
+- Fixed controller plugin paths containing spaces or special characters.
+- Fixed XPM image parsing state, resource leaks and malformed-image handling.
+- Fixed Linux `xrandr` process and stream leaks.
+- Fixed bundled Java 17 suppressing Java 27/28 installation recommendations.
+- Prevented Java and FR Resource Cache installers from overwriting existing files or folders.
+- Fixed cleanup after failed downloads and invalid packages.
+- Prevented installation destinations created during a download from being overwritten.
+- Rejected downloaded JDKs with incorrect versions.
+- Rejected malformed or unverifiable FR Resource Cache packages.
+
+### Compatibility
+
+- Preserved Mikohime's existing APIs, resources, manifests, module metadata and native interfaces.
+- Retained Java 17 support and selection.
+- Added direct support for installing the pinned Java 27 and Java 28 builds.
+- Installed downloaded JDKs locally beside `starsector.exe` without modifying the system-wide Java installation.
+- Preserved compatibility with the existing 33-file Mikohime distribution layout.
+
 ## [v0.6] - 2026-09-01
 
 ### Added
@@ -162,6 +212,7 @@
 
 - Initial release.
 
+[v0.7]: https://github.com/GaiusCassiusL/Starsector_Mikohime-Unofficial-Java28-Configurator/releases/tag/v0.7
 [v0.6]: https://github.com/GaiusCassiusL/Starsector_Mikohime-Unofficial-Java28-Configurator/releases/tag/v0.6
 [v0.5]: https://github.com/GaiusCassiusL/Starsector_Mikohime-Unofficial-Java28-Configurator/releases/tag/v0.5
 [v0.4]: https://github.com/GaiusCassiusL/Starsector_Mikohime-Unofficial-Java28-Configurator/releases/tag/v0.4
