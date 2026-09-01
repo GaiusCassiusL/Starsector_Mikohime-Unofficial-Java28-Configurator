@@ -1,0 +1,59 @@
+package org.apache.log4j.helpers;
+
+import org.apache.log4j.spi.LoggingEvent;
+
+public abstract class PatternConverter {
+   public PatternConverter next;
+   int min = -1;
+   int max = Integer.MAX_VALUE;
+   boolean leftAlign = false;
+   static String[] SPACES = new String[]{" ", "  ", "    ", "        ", "                ", "                                "};
+
+   protected PatternConverter() {
+   }
+
+   protected PatternConverter(final FormattingInfo fi) {
+      this.min = fi.min;
+      this.max = fi.max;
+      this.leftAlign = fi.leftAlign;
+   }
+
+   protected abstract String convert(LoggingEvent event);
+
+   public void format(final StringBuffer sbuf, final LoggingEvent e) {
+      String s = this.convert(e);
+      if (s == null) {
+         if (0 < this.min) {
+            this.spacePad(sbuf, this.min);
+         }
+      } else {
+         int len = s.length();
+         if (len > this.max) {
+            sbuf.append(s.substring(len - this.max));
+         } else if (len < this.min) {
+            if (this.leftAlign) {
+               sbuf.append(s);
+               this.spacePad(sbuf, this.min - len);
+            } else {
+               this.spacePad(sbuf, this.min - len);
+               sbuf.append(s);
+            }
+         } else {
+            sbuf.append(s);
+         }
+      }
+   }
+
+   public void spacePad(final StringBuffer sbuf, final int length) {
+      int l;
+      for (l = length; l >= 32; l -= 32) {
+         sbuf.append(SPACES[5]);
+      }
+
+      for (int i = 4; i >= 0; i--) {
+         if ((l & 1 << i) != 0) {
+            sbuf.append(SPACES[i]);
+         }
+      }
+   }
+}

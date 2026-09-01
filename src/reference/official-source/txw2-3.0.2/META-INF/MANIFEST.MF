@@ -1,0 +1,14 @@
+Manifest-Version: 1.0
+Build-Id: 3.0.2
+Build-Version: JAXB RI 3.0.2
+Git-Revision: 1120e83
+Git-Url: scm:git:ssh://git@github.com/eclipse-ee4j/jaxb-ri/jaxb-txw-pare
+ nt/txw2
+Implementation-Title: Jakarta XML Binding Implementation
+Implementation-Vendor: Eclipse Foundation
+Implementation-Vendor-Id: org.eclipse
+Implementation-Version: 3.0.2
+Major-Version: 3.0.2
+Specification-Title: Jakarta XML Binding
+Specification-Version: 3.0
+

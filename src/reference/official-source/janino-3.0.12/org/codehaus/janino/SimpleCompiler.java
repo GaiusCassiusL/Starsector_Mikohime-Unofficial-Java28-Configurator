@@ -1,0 +1,481 @@
+
+/*
+ * Janino - An embedded Java[TM] compiler
+ *
+ * Copyright (c) 2001-2010 Arno Unkrig. All rights reserved.
+ * Copyright (c) 2015-2016 TIBCO Software Inc. All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the
+ * following conditions are met:
+ *
+ *    1. Redistributions of source code must retain the above copyright notice, this list of conditions and the
+ *       following disclaimer.
+ *    2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the
+ *       following disclaimer in the documentation and/or other materials provided with the distribution.
+ *    3. Neither the name of the copyright holder nor the names of its contributors may be used to endorse or promote
+ *       products derived from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+ * INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+ * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
+package org.codehaus.janino;
+
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.Reader;
+import java.lang.reflect.Method;
+import java.security.AccessController;
+import java.security.Permissions;
+import java.security.PrivilegedAction;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.logging.Logger;
+
+import org.codehaus.commons.compiler.CompileException;
+import org.codehaus.commons.compiler.Cookable;
+import org.codehaus.commons.compiler.ErrorHandler;
+import org.codehaus.commons.compiler.ICookable;
+import org.codehaus.commons.compiler.ISimpleCompiler;
+import org.codehaus.commons.compiler.Location;
+import org.codehaus.commons.compiler.Sandbox;
+import org.codehaus.commons.compiler.WarningHandler;
+import org.codehaus.commons.nullanalysis.Nullable;
+import org.codehaus.janino.Java.Type;
+import org.codehaus.janino.Visitor.AtomVisitor;
+import org.codehaus.janino.Visitor.TypeVisitor;
+import org.codehaus.janino.util.ClassFile;
+
+/**
+ * To set up a {@link SimpleCompiler} object, proceed as described for {@link ISimpleCompiler}. Alternatively, a number
+ * of "convenience constructors" exist that execute the described steps instantly.
+ */
+public
+class SimpleCompiler extends Cookable implements ISimpleCompiler {
+
+    private static final Logger LOGGER = Logger.getLogger(SimpleCompiler.class.getName());
+
+    private ClassLoader parentClassLoader = Thread.currentThread().getContextClassLoader();
+
+    // Set while "cook()"ing.
+    @Nullable private ClassLoaderIClassLoader classLoaderIClassLoader;
+
+    @Nullable private ClassLoader    result;
+    @Nullable private ErrorHandler   optionalCompileErrorHandler;
+    @Nullable private WarningHandler optionalWarningHandler;
+
+    private boolean debugSource = Boolean.getBoolean(ICookable.SYSTEM_PROPERTY_SOURCE_DEBUGGING_ENABLE);
+    private boolean debugLines  = this.debugSource;
+    private boolean debugVars   = this.debugSource;
+
+    @Nullable private Permissions permissions;
+
+    private EnumSet<JaninoOption> options = EnumSet.noneOf(JaninoOption.class);
+
+    public static void // SUPPRESS CHECKSTYLE JavadocMethod
+    main(String[] args) throws Exception {
+        if (args.length >= 1 && "-help".equals(args[0])) {
+            System.out.println("Usage:");
+            System.out.println("    org.codehaus.janino.SimpleCompiler <source-file> <class-name> { <argument> }");
+            System.out.println("Reads a compilation unit from the given <source-file> and invokes method");
+            System.out.println("\"public static void main(String[])\" of class <class-name>, passing the");
+            System.out.println("given <argument>s.");
+            System.exit(1);
+        }
+
+        if (args.length < 2) {
+            System.err.println("Source file and/or class name missing; try \"-help\".");
+            System.exit(1);
+        }
+
+        // Get source file.
+        String sourceFileName = args[0];
+
+        // Get class name.
+        String className = args[1];
+
+        // Get arguments.
+        String[] arguments = new String[args.length - 2];
+        System.arraycopy(args, 2, arguments, 0, arguments.length);
+
+        // Compile the source file.
+        ClassLoader cl = new SimpleCompiler(sourceFileName, new FileInputStream(sourceFileName)).getClassLoader();
+
+        // Load the class.
+        Class<?> c = cl.loadClass(className);
+
+        // Invoke the "public static main(String[])" method.
+        Method m = c.getMethod("main", String[].class);
+        m.invoke(null, (Object) arguments);
+    }
+
+    /**
+     * Equivalent to
+     * <pre>
+     *     SimpleCompiler sc = new SimpleCompiler();
+     *     sc.cook(optionalFileName, in);
+     * </pre>
+     *
+     * @see #SimpleCompiler()
+     * @see Cookable#cook(String, Reader)
+     */
+    public
+    SimpleCompiler(@Nullable String optionalFileName, Reader in) throws IOException, CompileException {
+        this.cook(optionalFileName, in);
+    }
+
+    /**
+     * Equivalent to
+     * <pre>
+     *     SimpleCompiler sc = new SimpleCompiler();
+     *     sc.cook(optionalFileName, is);
+     * </pre>
+     *
+     * @see #SimpleCompiler()
+     * @see Cookable#cook(String, InputStream)
+     */
+    public
+    SimpleCompiler(@Nullable String optionalFileName, InputStream is) throws IOException, CompileException {
+        this.cook(optionalFileName, is);
+    }
+
+    /**
+     * Equivalent to
+     * <pre>
+     *     SimpleCompiler sc = new SimpleCompiler();
+     *     sc.cook(fileName);
+     * </pre>
+     *
+     * @see #SimpleCompiler()
+     * @see Cookable#cookFile(String)
+     */
+    public
+    SimpleCompiler(String fileName) throws IOException, CompileException {
+        this.cookFile(fileName);
+    }
+
+    /**
+     * Equivalent to
+     * <pre>
+     *     SimpleCompiler sc = new SimpleCompiler();
+     *     sc.setParentClassLoader(optionalParentClassLoader);
+     *     sc.cook(scanner);
+     * </pre>
+     *
+     * @see #SimpleCompiler()
+     * @see #setParentClassLoader(ClassLoader)
+     * @see Cookable#cook(Reader)
+     */
+    public
+    SimpleCompiler(Scanner scanner, @Nullable ClassLoader optionalParentClassLoader)
+    throws IOException, CompileException {
+        this.setParentClassLoader(optionalParentClassLoader);
+        this.cook(scanner);
+    }
+
+    public SimpleCompiler() {}
+
+    @Override public void
+    setParentClassLoader(@Nullable ClassLoader optionalParentClassLoader) {
+        this.parentClassLoader = (
+            optionalParentClassLoader != null
+            ? optionalParentClassLoader
+            : Thread.currentThread().getContextClassLoader()
+        );
+    }
+
+    @Override public void
+    setDebuggingInformation(boolean debugSource, boolean debugLines, boolean debugVars) {
+        this.debugSource = debugSource;
+        this.debugLines  = debugLines;
+        this.debugVars   = debugVars;
+    }
+
+    /**
+     * Scans, parses and compiles a given compilation unit from the given {@link Reader}. After completion, {@link
+     * #getClassLoader()} returns a {@link ClassLoader} that allows for access to the compiled classes.
+     */
+    @Override public final void
+    cook(@Nullable String optionalFileName, Reader r) throws CompileException, IOException {
+        this.cook(new Scanner(optionalFileName, r));
+    }
+
+    /**
+     * Scans, parses and compiles a given compilation unit from the given scanner. After completion, {@link
+     * #getClassLoader()} returns a {@link ClassLoader} that allows for access to the compiled classes.
+     */
+    public void
+    cook(Scanner scanner) throws CompileException, IOException {
+        this.compileToClassLoader(new Parser(scanner).parseCompilationUnit());
+    }
+
+    /**
+     * Cooks this compilation unit directly and invokes {@link #cook(ClassFile[])}.
+     */
+    public void
+    cook(Java.CompilationUnit compilationUnit) throws CompileException {
+
+        SimpleCompiler.LOGGER.entering(null, "cook", compilationUnit);
+
+        ClassFile[] classFiles;
+
+        IClassLoader icl = (this.classLoaderIClassLoader = new ClassLoaderIClassLoader(this.parentClassLoader));
+        try {
+
+            // Compile compilation unit to class files.
+            UnitCompiler unitCompiler = new UnitCompiler(compilationUnit, icl).options(this.options);
+            unitCompiler.setCompileErrorHandler(this.optionalCompileErrorHandler);
+            unitCompiler.setWarningHandler(this.optionalWarningHandler);
+
+            classFiles = unitCompiler.compileUnit(this.debugSource, this.debugLines, this.debugVars);
+        } finally {
+            this.classLoaderIClassLoader = null;
+        }
+
+        this.cook(classFiles);
+    }
+
+    /**
+     * Serializes the given <var>classFiles</var> as bytecode, stores them in a map, and then invokes {@link
+     * #cook(Map)}.
+     */
+    public void
+    cook(ClassFile[] classFiles) {
+
+        // Convert the class files to bytes and store them in a Map.
+        final Map<String /*className*/, byte[] /*bytecode*/> classes = new HashMap<String, byte[]>();
+        for (ClassFile cf : classFiles) {
+            classes.put(cf.getThisClassName(), cf.toByteArray());
+        }
+
+        this.cook(classes);
+    }
+
+    /**
+     * Creates a {@link ClassLoader} that loads the given <var>classes</var> (lazily), and makes that class loader
+     * available through {@link #getClassLoader()}.
+     *
+     * @param classes Maps fully qualified classes names to bytecodes
+     */
+    public void
+    cook(final Map<String /*className*/, byte[] /*bytecode*/> classes) {
+
+        // Create a ClassLoader that loads the generated classes.
+        ClassLoader cl = (ClassLoader) AccessController.doPrivileged(new PrivilegedAction<ClassLoader>() {
+
+            @Override public ClassLoader
+            run() {
+                return new ByteArrayClassLoader(
+                    classes,                              // classes
+                    SimpleCompiler.this.parentClassLoader // parent
+                );
+            }
+        });
+
+        // Apply any configured permissions.
+        if (this.permissions != null) Sandbox.confine(cl, this.permissions);
+
+        this.result = cl;
+    }
+
+    @Override public ClassLoader
+    getClassLoader() {
+        if (this.getClass() != SimpleCompiler.class) {
+            throw new IllegalStateException("Must not be called on derived instances");
+        }
+        return this.assertCooked();
+    }
+
+    @Override public void
+    setPermissions(Permissions permissions) { this.permissions = permissions;  }
+
+    @Override public void
+    setNoPermissions() { this.setPermissions(new Permissions()); }
+
+    /**
+     * Two {@link SimpleCompiler}s are regarded equal iff
+     * <ul>
+     *   <li>Both are objects of the same class (e.g. both are {@link ScriptEvaluator}s)
+     *   <li>Both generated functionally equal classes as seen by {@link ByteArrayClassLoader#equals(Object)}
+     * </ul>
+     */
+    @Override public boolean
+    equals(@Nullable Object o) {
+
+        if (!(o instanceof SimpleCompiler)) return false;
+
+        SimpleCompiler that = (SimpleCompiler) o;
+
+        if (this.getClass() != that.getClass()) return false;
+
+        return this.assertCooked().equals(that.assertCooked());
+    }
+
+    @Override public int
+    hashCode() { return this.parentClassLoader.hashCode(); }
+
+    @Override public void
+    setCompileErrorHandler(@Nullable ErrorHandler optionalCompileErrorHandler) {
+        this.optionalCompileErrorHandler = optionalCompileErrorHandler;
+    }
+
+    @Override public void
+    setWarningHandler(@Nullable WarningHandler optionalWarningHandler) {
+        this.optionalWarningHandler = optionalWarningHandler;
+    }
+
+    /**
+     * @return A reference to the currently effective compilation options; changes to it take
+     *         effect immediately
+     */
+    public EnumSet<JaninoOption>
+    options() { return this.options; }
+
+    /**
+     * Sets the options for all future compilations.
+     */
+    public SimpleCompiler
+    options(EnumSet<JaninoOption> options) {
+        this.options = options;
+        return this;
+    }
+
+    /**
+     * Wraps a reflection {@link Class} in a {@link Java.Type} object.
+     */
+    @Nullable protected Java.Type
+    optionalClassToType(final Location location, @Nullable final Class<?> clazz) {
+        if (clazz == null) return null;
+        return this.classToType(location, clazz);
+    }
+
+    /**
+     * Wraps a reflection {@link Class} in a {@link Java.Type} object.
+     */
+    protected Java.Type
+    classToType(final Location location, final Class<?> clazz) {
+
+        // Can't use a SimpleType here because the classLoaderIClassLoader is not yet set up. Instead, create a
+        // Type that lazily creates a delegate Type at COMPILE TIME.
+        return new Java.Type(location) {
+
+            @Nullable private Java.SimpleType delegate;
+
+            @Override @Nullable public <R, EX extends Throwable> R
+            accept(AtomVisitor<R, EX> visitor) throws EX { return visitor.visitType(this.getDelegate()); }
+
+            @Override @Nullable public <R, EX extends Throwable> R
+            accept(TypeVisitor<R, EX> visitor) throws EX { return this.getDelegate().accept(visitor); }
+
+            @Override public String
+            toString() { return this.getDelegate().toString(); }
+
+            private Type
+            getDelegate() {
+
+                if (this.delegate != null) return this.delegate;
+
+                ClassLoaderIClassLoader icl = SimpleCompiler.this.classLoaderIClassLoader;
+                assert icl != null;
+
+                IClass iClass;
+                try {
+                    iClass = icl.loadIClass(
+                        Descriptor.fromClassName(clazz.getName())
+                    );
+                } catch (ClassNotFoundException ex) {
+                    throw new InternalCompilerException("Loading IClass \"" + clazz.getName() + "\": " + ex);
+                }
+                if (iClass == null) {
+                    throw new InternalCompilerException(
+                        "Cannot load class '"
+                        + clazz.getName()
+                        + "' through the parent loader"
+                    );
+                }
+
+                // Verify that the class loaders match.
+                IClass   iClass2 = iClass;
+                Class<?> class2  = clazz;
+                for (;;) {
+                    IClass ct = iClass2.getComponentType();
+                    if (ct == null) {
+                        if (class2.getComponentType() != null) {
+                            throw new InternalCompilerException("Array type/class inconsistency");
+                        }
+                        break;
+                    }
+                    iClass2 = ct;
+                    class2  = class2.getComponentType();
+                    if (class2 == null) throw new InternalCompilerException("Array type/class inconsistency");
+                }
+                if (class2.isPrimitive()) {
+                    if (!iClass2.isPrimitive()) {
+                        throw new InternalCompilerException("Primitive type/class inconsistency");
+                    }
+                } else {
+                    if (iClass2.isPrimitive()) {
+                        throw new InternalCompilerException("Primitive type/class inconsistency");
+                    }
+                    if (((ReflectionIClass) iClass2).getClazz() != class2) {
+                        throw new InternalCompilerException(
+                            "Class '"
+                            + class2.getName()
+                            + "' was loaded through a different loader"
+                        );
+                    }
+                }
+
+                return (this.delegate = new Java.SimpleType(location, iClass));
+            }
+        };
+    }
+
+    /**
+     * Converts an array of {@link Class}es into an array of{@link Java.Type}s.
+     */
+    protected Java.Type[]
+    classesToTypes(Location location, @Nullable Class<?>[] classes) {
+
+        if (classes == null) return new Java.Type[0];
+
+        Java.Type[] types = new Java.Type[classes.length];
+        for (int i = 0; i < classes.length; ++i) {
+            types[i] = this.classToType(location, classes[i]);
+        }
+        return types;
+    }
+
+    /**
+     * Compiles the given compilation unit. (A "compilation unit" is typically the contents of a Java source file.)
+     *
+     * @param compilationUnit   The parsed compilation unit
+     * @return                  The {@link ClassLoader} into which the compiled classes were defined
+     * @throws CompileException
+     */
+    protected final ClassLoader
+    compileToClassLoader(Java.CompilationUnit compilationUnit) throws CompileException {
+        assert this.classLoaderIClassLoader == null;
+        this.cook(compilationUnit);
+        return this.assertCooked();
+    }
+
+    /**
+     * @return The class loader created when this {@link SimpleCompiler} was {@link #cook(Reader)}ed
+     */
+    private ClassLoader
+    assertCooked() {
+
+        ClassLoader cl = this.result;
+        if (cl == null) throw new IllegalStateException("Must only be called after \"cook()\"");
+
+        return cl;
+    }
+}
