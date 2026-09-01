@@ -1,0 +1,31 @@
+[
+    {
+        match: ["com/fs/starfarer/combat/*.*","org/dark/shaders/*.*"],
+        c1: {
+            Enable: true,
+            Exclude: false,
+        },
+        c2: {
+		    Enable: true,
+            Exclude: true,
+            BreakAtExecute: false,
+        },
+        BreakAtCompile: false,
+        DumpReplay: false,
+    },
+		    {
+        match: ["com/fs/graphics/*.*","com/fs/state/*.*","com/fs/util/*.*"],
+        c1: {
+            Enable: true,
+            Exclude: true,
+        },
+        c2: {
+		    Enable: true,
+			Vectorize: true,
+            Exclude: false,
+            BreakAtExecute: false,
+        },
+        BreakAtCompile: false,
+        DumpReplay: false,
+    },
+]

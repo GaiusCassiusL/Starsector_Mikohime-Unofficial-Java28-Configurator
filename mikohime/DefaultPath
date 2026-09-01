@@ -1,0 +1,4 @@
+@ECHO OFF
+@TITLE Miko is Hijacking your Computer!
+CD /D %~dp0
+CD starsector-core
