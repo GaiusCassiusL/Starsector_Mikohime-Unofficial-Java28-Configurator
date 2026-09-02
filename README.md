@@ -72,3 +72,6 @@ For additional help, I don't know. Contact [**GaiusCassius**](https://discord.co
 This is an unofficial community package. It is not affiliated with Starsector, Fractal Softworks, Adoptium, or the authors of optional third-party mods.
 
 The included Mikohime files are redistributed with permission from the mod author. Credit remains with the original modders and maintainers.
+
+![Cane Toad (*Rhinella marina*), Border Ranges National Park](https://media.australian.museum/media/dd/images/Rhinella_marina_Border_Ranges_NP.width-1200.a2aaf34.jpg)
+*“Cane Toad (Rhinella marina), Border Ranges NP” by Jodi Rowley / [Australian Museum](https://australian.museum/), used under its [Educational & Non-Commercial Terms](https://australian.museum/copyright/).*
