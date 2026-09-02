@@ -1,5 +1,26 @@
 # Changelog
 
+## [v0.7.1] - 2026-09-02
+
+### Changed
+
+- Rebuilt `lwjgl.jar` with corrected OpenCL capability initialization.
+- Expanded build verification to detect invalid OpenCL initialization order.
+- Expanded XStream runtime verification to cover object input and output streams.
+- Improved Gradle artifact filename matching.
+
+### Fixed
+
+- Fixed `CLCapabilities` evaluating OpenCL support before loading the required function addresses.
+- Fixed compatible OpenCL installations incorrectly reporting `OpenCL 1.0 not supported`.
+- Fixed BoxUtil OpenCL initialization failing with the rebuilt Mikohime `lwjgl.jar`.
+
+### Compatibility
+
+- Restored OpenCL support for compatible AMD, NVIDIA and Intel graphics drivers.
+- Preserved the existing Mikohime distribution layout, APIs and JVM configuration.
+- No changes to `Miko_Simple.txt` are required.
+
 ## [v0.7] - 2026-09-01
 
 ### Added
@@ -212,6 +233,7 @@
 
 - Initial release.
 
+[v0.7.1]: https://github.com/GaiusCassiusL/Starsector_Mikohime-Unofficial-Java28-Configurator/releases/tag/v0.7.1
 [v0.7]: https://github.com/GaiusCassiusL/Starsector_Mikohime-Unofficial-Java28-Configurator/releases/tag/v0.7
 [v0.6]: https://github.com/GaiusCassiusL/Starsector_Mikohime-Unofficial-Java28-Configurator/releases/tag/v0.6
 [v0.5]: https://github.com/GaiusCassiusL/Starsector_Mikohime-Unofficial-Java28-Configurator/releases/tag/v0.5
