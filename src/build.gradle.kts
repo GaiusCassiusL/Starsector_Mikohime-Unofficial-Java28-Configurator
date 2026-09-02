@@ -170,7 +170,7 @@ val resolveOfficialJars by tasks.registering(Copy::class) {
     from(officialConfiguration) {
         officialArtifacts.forEach { artifact ->
             val (_, name, version) = artifact.coordinate.split(":")
-            rename("$name-$version\\.jar", artifact.fileName)
+            rename(Regex.escape("$name-$version.jar"), artifact.fileName)
         }
     }
     into(officialStageDir)

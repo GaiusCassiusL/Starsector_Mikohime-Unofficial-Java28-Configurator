@@ -1,8 +1,11 @@
 package mikohime.verify;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.lang.reflect.AnnotatedType;
@@ -43,6 +46,7 @@ import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.AnnotationNode;
 import org.objectweb.asm.tree.ClassNode;
+import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.FieldNode;
 import org.objectweb.asm.tree.InnerClassNode;
 import org.objectweb.asm.tree.MethodNode;
@@ -333,6 +337,7 @@ public final class ArtifactVerifier {
         );
         compareProbe("xstream-1.4.21_miko.jar", originalDir, rebuiltDir, ArtifactVerifier::xstreamProbe, outcomes, failures);
         verifyNativeLwjglProbe(rebuiltDir, outcomes.get("lwjgl.jar"), failures);
+        verifyOpenCLCapabilityInitialization(rebuiltDir, outcomes.get("lwjgl.jar"), failures);
 
         Files.createDirectories(jsonReport.getParent());
         Files.writeString(jsonReport, buildJsonReport(distribution, outcomes.values(), failures));
@@ -898,6 +903,71 @@ public final class ArtifactVerifier {
         }
     }
 
+    private static void verifyOpenCLCapabilityInitialization(
+        Path rebuiltDir,
+        ArtifactOutcome outcome,
+        List<FailureDetail> failures
+    ) {
+        String className = "org/lwjgl/opencl/CLCapabilities";
+        try (JarFile jar = new JarFile(rebuiltDir.resolve("lwjgl.jar").toFile())) {
+            JarEntry entry = jar.getJarEntry(className + ".class");
+            if (entry == null) {
+                throw new IllegalStateException("Missing " + className + ".class");
+            }
+
+            ClassNode node = new ClassNode();
+            try (InputStream input = jar.getInputStream(entry)) {
+                new ClassReader(input).accept(node, 0);
+            }
+
+            MethodNode initializer = node.methods.stream()
+                .filter(method -> "<clinit>".equals(method.name))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("Missing CLCapabilities static initializer"));
+            int instructionIndex = 0;
+            int lastFunctionAddressWrite = -1;
+            int firstCapabilityWrite = Integer.MAX_VALUE;
+            for (var instruction : initializer.instructions) {
+                if (instruction instanceof FieldInsnNode field
+                    && instruction.getOpcode() == Opcodes.PUTSTATIC
+                    && className.equals(field.owner)) {
+                    if ("J".equals(field.desc)) {
+                        lastFunctionAddressWrite = instructionIndex;
+                    } else if ("Z".equals(field.desc)) {
+                        firstCapabilityWrite = Math.min(firstCapabilityWrite, instructionIndex);
+                    }
+                }
+                instructionIndex++;
+            }
+
+            boolean matches = lastFunctionAddressWrite >= 0
+                && firstCapabilityWrite != Integer.MAX_VALUE
+                && firstCapabilityWrite > lastFunctionAddressWrite;
+            outcome.probe = outcome.probe == null ? matches : outcome.probe && matches;
+            if (!matches) {
+                failures.add(new FailureDetail(
+                    "lwjgl.jar",
+                    "opencl-capability-initialization",
+                    "OpenCL capability flags are initialized before all function addresses are populated.",
+                    List.of(
+                        "lastFunctionAddressWrite=" + lastFunctionAddressWrite,
+                        "firstCapabilityWrite=" + firstCapabilityWrite
+                    ),
+                    null
+                ));
+            }
+        } catch (Throwable error) {
+            outcome.probe = false;
+            failures.add(new FailureDetail(
+                "lwjgl.jar",
+                "opencl-capability-initialization",
+                "Unable to verify OpenCL capability initialization order.",
+                List.of(rootMessage(error)),
+                stackTrace(error)
+            ));
+        }
+    }
+
     private static String withArtifactLoader(Path directory, ArtifactSpec artifact, Probe probe) throws Exception {
         try (URLClassLoader loader = newArtifactClassLoader(directory, artifact)) {
             return probe.run(loader);
@@ -955,7 +1025,20 @@ public final class ArtifactVerifier {
         Object xstream = constructor.newInstance(driver);
         String xml = String.valueOf(xstreamType.getMethod("toXML", Object.class).invoke(xstream, "mikohime"));
         Object value = xstreamType.getMethod("fromXML", String.class).invoke(xstream, xml);
-        return xml + "|" + value;
+
+        ByteArrayOutputStream streamBytes = new ByteArrayOutputStream();
+        try (ObjectOutputStream output = (ObjectOutputStream) xstreamType
+            .getMethod("createObjectOutputStream", java.io.OutputStream.class)
+            .invoke(xstream, streamBytes)) {
+            output.writeObject("mikohime-stream");
+        }
+        Object streamValue;
+        try (ObjectInputStream input = (ObjectInputStream) xstreamType
+            .getMethod("createObjectInputStream", InputStream.class)
+            .invoke(xstream, new ByteArrayInputStream(streamBytes.toByteArray()))) {
+            streamValue = input.readObject();
+        }
+        return xml + "|" + value + "|" + streamValue;
     }
 
     private static MatchResult compareSets(Set<String> expected, Set<String> actual) {

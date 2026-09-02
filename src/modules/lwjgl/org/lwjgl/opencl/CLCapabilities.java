@@ -1,15 +1,11 @@
 package org.lwjgl.opencl;
 
 public final class CLCapabilities {
-   static final boolean CL_APPLE_ContextLoggingFunctions = isAPPLE_ContextLoggingFunctionsSupported();
    static final long clLogMessagesToSystemLogAPPLE = CL.getFunctionAddress("clLogMessagesToSystemLogAPPLE");
    static final long clLogMessagesToStdoutAPPLE = CL.getFunctionAddress("clLogMessagesToStdoutAPPLE");
    static final long clLogMessagesToStderrAPPLE = CL.getFunctionAddress("clLogMessagesToStderrAPPLE");
-   static final boolean CL_APPLE_SetMemObjectDestructor = isAPPLE_SetMemObjectDestructorSupported();
    static final long clSetMemObjectDestructorAPPLE = CL.getFunctionAddress("clSetMemObjectDestructorAPPLE");
-   static final boolean CL_APPLE_gl_sharing = isAPPLE_gl_sharingSupported();
    static final long clGetGLContextInfoAPPLE = CL.getFunctionAddress("clGetGLContextInfoAPPLE");
-   static final boolean OpenCL10 = isCL10Supported();
    static final long clGetPlatformIDs = CL.getFunctionAddress("clGetPlatformIDs");
    static final long clGetPlatformInfo = CL.getFunctionAddress("clGetPlatformInfo");
    static final long clGetDeviceIDs = CL.getFunctionAddress("clGetDeviceIDs");
@@ -75,7 +71,6 @@ public final class CLCapabilities {
    static final long clFlush = CL.getFunctionAddress("clFlush");
    static final long clFinish = CL.getFunctionAddress("clFinish");
    static final long clGetExtensionFunctionAddress = CL.getFunctionAddress("clGetExtensionFunctionAddress");
-   static final boolean OpenCL10GL = isCL10GLSupported();
    static final long clCreateFromGLBuffer = CL.getFunctionAddress("clCreateFromGLBuffer");
    static final long clCreateFromGLTexture2D = CL.getFunctionAddress("clCreateFromGLTexture2D");
    static final long clCreateFromGLTexture3D = CL.getFunctionAddress("clCreateFromGLTexture3D");
@@ -84,7 +79,6 @@ public final class CLCapabilities {
    static final long clGetGLTextureInfo = CL.getFunctionAddress("clGetGLTextureInfo");
    static final long clEnqueueAcquireGLObjects = CL.getFunctionAddress("clEnqueueAcquireGLObjects");
    static final long clEnqueueReleaseGLObjects = CL.getFunctionAddress("clEnqueueReleaseGLObjects");
-   static final boolean OpenCL11 = isCL11Supported();
    static final long clCreateSubBuffer = CL.getFunctionAddress("clCreateSubBuffer");
    static final long clSetMemObjectDestructorCallback = CL.getFunctionAddress("clSetMemObjectDestructorCallback");
    static final long clEnqueueReadBufferRect = CL.getFunctionAddress("clEnqueueReadBufferRect");
@@ -93,7 +87,6 @@ public final class CLCapabilities {
    static final long clCreateUserEvent = CL.getFunctionAddress("clCreateUserEvent");
    static final long clSetUserEventStatus = CL.getFunctionAddress("clSetUserEventStatus");
    static final long clSetEventCallback = CL.getFunctionAddress("clSetEventCallback");
-   static final boolean OpenCL12 = isCL12Supported();
    static final long clRetainDevice = CL.getFunctionAddress("clRetainDevice");
    static final long clReleaseDevice = CL.getFunctionAddress("clReleaseDevice");
    static final long clCreateSubDevices = CL.getFunctionAddress("clCreateSubDevices");
@@ -110,24 +103,31 @@ public final class CLCapabilities {
    static final long clEnqueueBarrierWithWaitList = CL.getFunctionAddress("clEnqueueBarrierWithWaitList");
    static final long clSetPrintfCallback = CL.getFunctionAddress("clSetPrintfCallback");
    static final long clGetExtensionFunctionAddressForPlatform = CL.getFunctionAddress("clGetExtensionFunctionAddressForPlatform");
-   static final boolean OpenCL12GL = isCL12GLSupported();
    static final long clCreateFromGLTexture = CL.getFunctionAddress("clCreateFromGLTexture");
-   static final boolean CL_EXT_device_fission = isEXT_device_fissionSupported();
    static final long clRetainDeviceEXT = CL.getFunctionAddress("clRetainDeviceEXT");
    static final long clReleaseDeviceEXT = CL.getFunctionAddress("clReleaseDeviceEXT");
    static final long clCreateSubDevicesEXT = CL.getFunctionAddress("clCreateSubDevicesEXT");
-   static final boolean CL_EXT_migrate_memobject = isEXT_migrate_memobjectSupported();
    static final long clEnqueueMigrateMemObjectEXT = CL.getFunctionAddress("clEnqueueMigrateMemObjectEXT");
-   static final boolean CL_KHR_gl_event = isKHR_gl_eventSupported();
    static final long clCreateEventFromGLsyncKHR = CL.getFunctionAddress("clCreateEventFromGLsyncKHR");
-   static final boolean CL_KHR_gl_sharing = isKHR_gl_sharingSupported();
    static final long clGetGLContextInfoKHR = CL.getFunctionAddress("clGetGLContextInfoKHR");
-   static final boolean CL_KHR_icd = isKHR_icdSupported();
    static final long clIcdGetPlatformIDsKHR = CL.getFunctionAddress("clIcdGetPlatformIDsKHR");
-   static final boolean CL_KHR_subgroups = isKHR_subgroupsSupported();
    static final long clGetKernelSubGroupInfoKHR = CL.getFunctionAddress("clGetKernelSubGroupInfoKHR");
-   static final boolean CL_KHR_terminate_context = isKHR_terminate_contextSupported();
    static final long clTerminateContextKHR = CL.getFunctionAddress("clTerminateContextKHR");
+   static final boolean CL_APPLE_ContextLoggingFunctions = isAPPLE_ContextLoggingFunctionsSupported();
+   static final boolean CL_APPLE_SetMemObjectDestructor = isAPPLE_SetMemObjectDestructorSupported();
+   static final boolean CL_APPLE_gl_sharing = isAPPLE_gl_sharingSupported();
+   static final boolean OpenCL10 = isCL10Supported();
+   static final boolean OpenCL10GL = isCL10GLSupported();
+   static final boolean OpenCL11 = isCL11Supported();
+   static final boolean OpenCL12 = isCL12Supported();
+   static final boolean OpenCL12GL = isCL12GLSupported();
+   static final boolean CL_EXT_device_fission = isEXT_device_fissionSupported();
+   static final boolean CL_EXT_migrate_memobject = isEXT_migrate_memobjectSupported();
+   static final boolean CL_KHR_gl_event = isKHR_gl_eventSupported();
+   static final boolean CL_KHR_gl_sharing = isKHR_gl_sharingSupported();
+   static final boolean CL_KHR_icd = isKHR_icdSupported();
+   static final boolean CL_KHR_subgroups = isKHR_subgroupsSupported();
+   static final boolean CL_KHR_terminate_context = isKHR_terminate_contextSupported();
 
    private CLCapabilities() {
    }
