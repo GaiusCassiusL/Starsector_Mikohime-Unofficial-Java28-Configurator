@@ -236,7 +236,7 @@ public final class ArtifactVerifier {
             failures.add(new FailureDetail(
                 "distribution",
                 "expected-files",
-                "Distribution file set differs from the intended 15 jars/config/resources/windows natives.",
+                "Windows Mikohime file set differs from the intended 15 jars, shared files, and native libraries.",
                 distribution.context(),
                 null
             ));
@@ -347,7 +347,7 @@ public final class ArtifactVerifier {
             failures.forEach(failure -> System.err.println("FAIL: " + failure.artifact() + " [" + failure.check() + "] " + failure.message()));
             throw new IllegalStateException("Equivalence verification failed; see " + jsonReport + " and " + textReport);
         }
-        System.out.println("Verified 15 artifacts plus configuration/resources/windows natives with metadata, linkage, and isolated probes.");
+        System.out.println("Verified 15 artifacts plus shared files and Windows natives with metadata, linkage, and isolated probes.");
         System.out.println("Reports: " + jsonReport.toAbsolutePath() + " and " + textReport.toAbsolutePath());
     }
 
@@ -652,10 +652,11 @@ public final class ArtifactVerifier {
         Stream.concat(UPSTREAM_ARTIFACTS.stream(), REBUILT_ARTIFACTS.stream())
             .map(ArtifactSpec::fileName)
             .forEach(expected::add);
-        Path distribution = projectRoot.resolve("distribution");
-        collectFiles(distribution.resolve("configuration"), expected::add);
-        collectFiles(distribution.resolve("resources"), expected::add);
-        collectFiles(distribution.resolve("windows"), relative -> expected.add("windows/" + relative));
+        Path distribution = projectRoot.resolve("../distribution").normalize();
+        collectFiles(distribution.resolve("shared/configuration"), expected::add);
+        collectFiles(distribution.resolve("shared/resources"), expected::add);
+        collectFiles(distribution.resolve("windows/configuration"), expected::add);
+        collectFiles(distribution.resolve("windows/native"), relative -> expected.add("windows/" + relative));
 
         Set<String> actual = new TreeSet<>();
         try (Stream<Path> paths = Files.walk(rebuiltDir)) {

@@ -1,7 +1,0 @@
-.gradle/
-build/
-**/build/
-.gradletoolchains/
-.jdk/
-out/
-lwjgl_errors*.txt
