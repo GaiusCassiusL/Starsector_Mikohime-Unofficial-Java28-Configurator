@@ -1,5 +1,32 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- Added a 64-bit Linux configurator and generated `Miko_Rouge.sh` launcher.
+- Added checksum-verified Linux LWJGL, OpenAL, and JInput native packaging.
+- Added independent Windows and Linux Gradle distribution tasks.
+- Added Linux JNI initialization checks and cross-platform GitHub Actions
+  release packaging.
+- Added shared declarative Java, component, classpath, and memory configuration.
+
+### Changed
+
+- Moved configurators under platform-specific source directories.
+- Moved maintained distribution inputs out of the Java source tree.
+- Split JVM templates and native assets by platform.
+- Changed build output to `src/build/dist/windows` and
+  `src/build/dist/linux`.
+
+### Compatibility
+
+- Linux OpenCL remains supplied by the installed Mesa or GPU-vendor ICD rather
+  than by Mikohime.
+- Linux packages target x86-64 and use native libraries compatible with the
+  reconstructed LWJGL 2.9.5 and JInput JNI interfaces.
+- Windows behavior and native libraries remain unchanged.
+
 ## [v0.7.1] - 2026-09-02
 
 ### Changed

@@ -1,0 +1,11 @@
+/build/
+/src/.gradle/
+/src/build/
+/src/.gradletoolchains/
+/src/.jdk/
+/src/**/build/
+*.pending
+.configure_me.lock/
+.configure_input.*.tmp
+tmp_extract/
+lwjgl_errors*.txt

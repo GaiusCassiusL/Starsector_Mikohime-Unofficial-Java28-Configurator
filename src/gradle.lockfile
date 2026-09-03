@@ -3,10 +3,12 @@
 # This file is expected to be part of source control.
 com.lmax:disruptor:4.0.0=officialConfiguration
 javax.xml.bind:jaxb-api:2.4.0-b180830.0359=officialConfiguration
+net.java.jinput:jinput:2.0.10=linuxJinputNatives
 org.apache.logging.log4j:log4j-api:3.0.0-alpha1=officialConfiguration
 org.apache.logging.log4j:log4j-plugins:3.0.0-alpha1=officialConfiguration
 org.codehaus.janino:commons-compiler-jdk:3.0.12=officialConfiguration
 org.codehaus.janino:commons-compiler:3.0.12=officialConfiguration
 org.codehaus.janino:janino:3.0.12=officialConfiguration
 org.glassfish.jaxb:txw2:3.0.2=officialConfiguration
+org.jmonkeyengine:lwjgl-platform:2.9.5=linuxLwjglNatives
 empty=

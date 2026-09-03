@@ -1,75 +1,100 @@
 # Mikohime Unofficial Java 28 Configurator
 
-An unofficial Mikohime source project and configurator that add Java 28 early-access support to Starsector.
+An unofficial, source-reconstructed Mikohime distribution and configurator for
+running Starsector with Java 17, Java 27, or Java 28 on Windows and 64-bit Linux.
+Redistribution of the Mikohime files is approved by the original mod author.
 
-Published release packages include all required Mikohime files with approval from the mod author (thanks, Yue). The original Mikohime package does not need to be downloaded or installed separately.
+## Release packages
 
-The configurator generates:
+| Platform | Configurator | Generated launcher |
+| --- | --- | --- |
+| Windows x64 | `Configure_Me.cmd` | `Miko_Rouge.bat` |
+| Linux x64 | `Configure_Me.sh` | `Miko_Rouge.sh` |
 
-- `Miko_Rouge.bat`
-- `Miko_Simple.txt`
-- `Miko_Info.txt`
+Extract the package into the Starsector installation directory. Keep
+Starsector's bundled Java runtime; the configurator can also use a supported
+local or system Java installation.
 
-> [!IMPORTANT]
-> Currently adds support for Java 28 builds `28+11-ea`, `28+12-ea`, and `28+13-ea`.
+### Windows
 
-## Requirements
+1. Confirm `Configure_Me.cmd`, `mikohime`, and `starsector-core` are beside
+   `starsector.exe`.
+2. Run `Configure_Me.cmd`.
+3. Select Java and the desired memory, CPU, logging, rendering, cache, and
+   Prepatcher options.
+4. Launch with `Miko_Rouge.bat`.
 
-- A Windows installation of Starsector
-- One of the supported Java versions
+### Linux
 
-## Java Downloads
+1. Confirm `Configure_Me.sh`, `mikohime`, and `starsector-core` are beside
+   `starsector.sh` or the `starsector` executable.
+2. Make the configurator executable if the archive tool did not preserve its
+   mode: `chmod +x Configure_Me.sh`.
+3. Run `./Configure_Me.sh`, then launch with `./Miko_Rouge.sh`.
 
-| Version | Download |
-| --- | --- |
-| Java 27 (`27+22-ea`) | [Download from Adoptium](https://github.com/adoptium/temurin27-binaries/releases/download/jdk-27%2B22-ea-beta/OpenJDK-jdk_x64_windows_hotspot_27_22-ea.zip) |
-| Java 28 (`28+13-ea`) | [Download from Adoptium](https://github.com/adoptium/temurin28-binaries/releases/download/jdk-28%2B13-ea-beta/OpenJDK-jdk_x64_windows_hotspot_28_13-ea.zip) |
+The Linux configurator detects local and system Java 17/27/28 installations,
+selects a memory preset, detects Fast Rendering and related optional
+components, and writes Linux-native paths and classpath separators. It can
+install the pinned Adoptium builds with checksum validation:
 
-~ Just use `28+13-ea` ~
+```bash
+./Configure_Me.sh --install-java 27
+./Configure_Me.sh --install-java 28
+```
 
-## Installation
+Linux requires the normal Starsector desktop runtime libraries (X11, XRandR,
+XCursor, XF86VidMode, OpenAL, and ALSA). Mods that use OpenCL, such as BoxUtil,
+also require a working vendor or Mesa OpenCL ICD. `libOpenCL.so` is intentionally
+not bundled because it must match the installed GPU driver.
 
-1. Download this package and extract its contents into your Starsector directory beside `starsector.exe`.
+## Java downloads
 
-   ```text
-   .\Starsector
-   ```
+| Version | Windows | Linux |
+| --- | --- | --- |
+| Java 27 (`27+22-ea`) | [ZIP](https://github.com/adoptium/temurin27-binaries/releases/download/jdk-27%2B22-ea-beta/OpenJDK-jdk_x64_windows_hotspot_27_22-ea.zip) | [tar.gz](https://github.com/adoptium/temurin27-binaries/releases/download/jdk-27%2B22-ea-beta/OpenJDK-jdk_x64_linux_hotspot_27_22-ea.tar.gz) |
+| Java 28 (`28+13-ea`) | [ZIP](https://github.com/adoptium/temurin28-binaries/releases/download/jdk-28%2B13-ea-beta/OpenJDK-jdk_x64_windows_hotspot_28_13-ea.zip) | [tar.gz](https://github.com/adoptium/temurin28-binaries/releases/download/jdk-28%2B13-ea-beta/OpenJDK-jdk_x64_linux_hotspot_28_13-ea.tar.gz) |
 
-2. Keep Starsector's bundled `jre` folder. Do not delete or replace it.
+## Building
 
-3. To use Java 27 or Java 28, download and extract the desired JDK into a separate folder beside `starsector.exe` or choose to download and install it directly from within `Configure_Me.cmd`.
+JDK 21 is required. Run `src\build.cmd` on Windows or `bash src/build.sh` on Linux.
+Platform release roots are generated under:
 
-   Example:
+```text
+src/build/dist/windows/
+src/build/dist/linux/
+```
 
-   ```text
-   .\Starsector\jdk-27+22
-   .\Starsector\jdk-28+13
-   ```
+The Gradle build reconstructs 15 JARs, verifies the Windows-equivalent output,
+and assembles platform-specific native libraries. Linux natives are
+checksum-verified Maven artifacts:
 
-4. Run `Configure_Me.cmd`.
+- LWJGL/OpenAL: `org.jmonkeyengine:lwjgl-platform:2.9.5:natives-linux`
+- JInput: `net.java.jinput:jinput:2.0.10:natives-all`
 
-   > If Starsector is installed under `Program Files`, you may need to run the configurator as an administrator.
+Linux CI loads both the reconstructed JARs and packaged JNI libraries to catch
+ABI or native-loading failures. Tagged releases publish ZIP and tar.gz assets
+through `.github/workflows/release.yml`.
 
-5. Select a detected Java installation and configure the available memory, CPU, logging, Large Pages, Fast Rendering, FR Resource Cache, and StarsectorPrepatcher options.
+## Repository layout
 
-6. Launch Starsector using the generated `Miko_Rouge.bat`.
-
-## Building Mikohime
-
-The reconstructed source and build system are under `src`. From that directory,
-run `build.cmd` with JDK 21 configured through `JAVA_HOME` or installed locally
-at `src\.jdk\21`. The verified distribution is generated under
-`src\build\dist`.
-
-## Troubleshooting
-
-Run `Configure_Me.cmd` again and verify that the expected Java installation and optional components are detected.
-
-For additional help, I don't know. Contact [**GaiusCassius**](https://discord.com/users/301544769811775488) on Discord I guess.
+```text
+configurator/
+  shared/       Declarative classpath, memory, component, and Java data
+  windows/      CMD configurator
+  linux/        Bash configurator
+distribution/
+  shared/       Shared Mikohime configuration and resources
+  windows/      Windows templates and DLL inputs
+  linux/        Linux templates; native .so files are resolved by Gradle
+src/            Reconstructed Java modules, references, build, and verification
+```
 
 ## Disclaimer
 
-This is an unofficial community package. It is not affiliated with Starsector, Fractal Softworks, Adoptium, or the authors of optional third-party mods.
+This community package is not affiliated with Starsector, Fractal Softworks,
+Adoptium, or the authors of optional third-party mods. Recovered source is not
+the original authored source; original comments, formatting, and some local
+names cannot be recovered.
 
 The included Mikohime files are redistributed with permission from the mod author. Credit remains with the original modders and maintainers.
 

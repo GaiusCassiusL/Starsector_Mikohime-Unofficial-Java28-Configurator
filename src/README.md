@@ -8,22 +8,24 @@ source recovered from the bundled bytecode.
 
 Prerequisites:
 
-- Windows
-- JDK 21 or newer in `JAVA_HOME`, or a local JDK at `.jdk\21`
+- Windows or 64-bit Linux
+- JDK 21 in `JAVA_HOME`, or a local JDK at `.jdk\21`
 - Network access on the first build so Gradle can resolve dependencies
 
 Run:
 
-```bat
-build.cmd
+```text
+build.cmd       (Windows)
+bash build.sh   (Linux)
 ```
 
-The command performs a clean build, assembles the distribution, and runs the
-verifier. `build.cmd` prefers `.jdk\21` and falls back to `JAVA_HOME` when the
-local JDK is not present. Output is written to:
+The command performs a clean build, assembles the applicable distributions,
+and runs verification. Both scripts prefer `.jdk/21` and fall back to
+`JAVA_HOME`. Output is written to:
 
 ```text
-build/dist/
+build/dist/windows/
+build/dist/linux/
 ```
 
 Reports are written to:
@@ -54,8 +56,8 @@ No original JAR is copied into the output as a fallback.
 
 The verifier now checks:
 
-- the exact intended distribution file set (15 JARs plus the copied
-  configuration files, resources, and Windows natives), failing on unexpected
+- the exact intended Windows Mikohime file set (15 JARs plus copied
+  configuration files, resources, and natives), failing on unexpected
   extras as well as missing files;
 - byte identity for all eight upstream-resolved artifacts;
 - complete rebuilt class inventories and class metadata using ASM without
@@ -69,7 +71,8 @@ The verifier now checks:
   constructors, methods, annotations, and record metadata;
 - isolated runtime probes for JOrbis, JInput, LWJGL, LWJGL Util, both custom
   Log4j plugin descriptors, XStream serialization/deserialization, and LWJGL
-  native initialization.
+  native initialization;
+- Linux CI initialization of the packaged LWJGL and JInput JNI libraries.
 
 Expected linkage exclusions are limited to classes whose signatures directly
 reference optional dependencies that are not part of the intended flat-folder
@@ -86,11 +89,9 @@ resolved from the shipped Windows-only distribution:
 - LWJGL's macOS-only `com.apple.eio.FileManager` path, if reflective linkage on
   a non-macOS host requires it.
 
-A successful `build.cmd` means these compatibility checks passed for all 15
-JARs and the copied ancillary files. It still does not prove every internal
-code path is identical. A full Starsector launch and gameplay test is still
-required for complete application-level validation because the game itself is
-not part of this source tree.
+A successful platform build means these compatibility checks passed for all 15
+JARs and copied ancillary files. A full Starsector launch and gameplay test is
+still required because the game itself is not part of this source tree.
 
 ## Reproducibility controls
 
@@ -119,9 +120,10 @@ without holding `JarFile` handles open between checks.
 - `modules/` - reconstructed build modules, with custom Log4j and XStream overlays under `modules/overlays/`
 - `reference/official-source/` - published source for the eight exact upstream matches
 - `reference/original-binaries/` - original artifacts used for verification and compatibility metadata
-- `distribution/configuration/` - Mikohime JVM, logging, XML, and compiler directives
-- `distribution/resources/` - launcher and background images
-- `distribution/windows/` - original native DLLs; these are copied, not rebuilt
+- `../distribution/shared/` - shared Mikohime configuration and resources
+- `../distribution/windows/` - Windows JVM template and original native DLLs
+- `../distribution/linux/` - Linux JVM template
+- `../configurator/` - shared configurator data plus CMD and Bash front ends
 - `tooling/verification/` - ASM-based metadata/resource checks, linkage validation, and runtime probes
 - `tooling/apple-stub/` - compile-time-only compatibility stub, never shipped
 

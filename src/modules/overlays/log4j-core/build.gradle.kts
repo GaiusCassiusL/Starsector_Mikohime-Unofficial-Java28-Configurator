@@ -1,5 +1,6 @@
 import java.io.File
 import java.util.jar.JarFile
+import java.util.jar.Manifest
 import org.gradle.api.GradleException
 
 // Only the generated Log4jPlugins class differs from the published artifact.
@@ -75,12 +76,13 @@ val validateOverlayAssembly by tasks.registering {
             if (absentFromUpstream.isNotEmpty()) {
                 throw GradleException("Upstream Log4j Core jar is missing overlay targets: $absentFromUpstream")
             }
-            val upstreamManifest = upstreamJar.getInputStream(
-                upstreamJar.getJarEntry("META-INF/MANIFEST.MF")
-                    ?: throw GradleException("Upstream Log4j Core jar is missing META-INF/MANIFEST.MF")
-            ).use { it.readBytes() }
-            val localManifest = layout.projectDirectory.file("META-INF/MANIFEST.MF").asFile.readBytes()
-            if (!upstreamManifest.contentEquals(localManifest)) {
+            val upstreamManifest = upstreamJar.manifest
+                ?: throw GradleException("Upstream Log4j Core jar is missing META-INF/MANIFEST.MF")
+            val localManifest = layout.projectDirectory.file("META-INF/MANIFEST.MF").asFile
+                .inputStream().use(::Manifest)
+            if (upstreamManifest.mainAttributes != localManifest.mainAttributes ||
+                upstreamManifest.entries != localManifest.entries
+            ) {
                 throw GradleException("Recovered Log4j Core manifest diverges from the upstream jar manifest.")
             }
         }
