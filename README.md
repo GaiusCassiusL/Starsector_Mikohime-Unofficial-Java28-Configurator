@@ -1,15 +1,15 @@
 # Mikohime Unofficial Java 28 Configurator
 
 An unofficial, source-reconstructed Mikohime distribution and configurator for
-running Starsector with Java 17, Java 27, or Java 28 on Windows and 64-bit Linux.
-Redistribution of the Mikohime files is approved by the original mod author.
+running Starsector with Java 17, Java 27, or Java 28 on Windows. Experimental
+64-bit Linux support is under development. Redistribution of the Mikohime files
+is approved by the original mod author.
 
-## Release packages
+## Released platform
 
 | Platform | Configurator | Generated launcher |
 | --- | --- | --- |
 | Windows x64 | `Configure_Me.cmd` | `Miko_Rouge.bat` |
-| Linux x64 | `Configure_Me.sh` | `Miko_Rouge.sh` |
 
 Extract the package into the Starsector installation directory. Keep
 Starsector's bundled Java runtime; the configurator can also use a supported
@@ -24,7 +24,12 @@ local or system Java installation.
    Prepatcher options.
 4. Launch with `Miko_Rouge.bat`.
 
-### Linux
+### Experimental Linux support
+
+> [!WARNING]
+> Linux support is not release-ready. Its build and JNI initialization pass in
+> CI, but it has not completed real Starsector launch, gameplay, mod, GPU, and
+> distribution testing. Do not treat the Linux build as a supported release.
 
 1. Confirm `Configure_Me.sh`, `mikohime`, and `starsector-core` are beside
    `starsector.sh` or the `starsector` executable.
@@ -57,7 +62,7 @@ not bundled because it must match the installed GPU driver.
 ## Building
 
 JDK 21 is required. Run `src\build.cmd` on Windows or `bash src/build.sh` on Linux.
-Platform release roots are generated under:
+Platform build roots are generated under:
 
 ```text
 src/build/dist/windows/
@@ -72,8 +77,8 @@ checksum-verified Maven artifacts:
 - JInput: `net.java.jinput:jinput:2.0.10:natives-all`
 
 Linux CI loads both the reconstructed JARs and packaged JNI libraries to catch
-ABI or native-loading failures. Tagged releases publish ZIP and tar.gz assets
-through `.github/workflows/release.yml`.
+ABI or native-loading failures. This is a development check and does not prove
+that Starsector or third-party mods work correctly on Linux.
 
 ## Repository layout
 
