@@ -1,4 +1,6 @@
 *.sh text eol=lf
+*.entries text eol=lf
 *.cmd text eol=crlf
 *.properties text eol=lf
 *.tsv text eol=lf
+distribution/linux/configuration/DefaultVM text eol=lf

@@ -13,7 +13,7 @@ REM ============================================================================
 REM Constants and generated JVM arguments
 REM ============================================================================
 
-set "SharedConfigRoot=configurator\shared"
+set "SharedConfigRoot=mikohime\configurator\shared"
 if not exist "!SharedConfigRoot!\components.properties" set "SharedConfigRoot=%~dp0..\shared"
 if not exist "!SharedConfigRoot!\components.properties" (
     echo Missing shared configurator data: components.properties
@@ -66,13 +66,10 @@ set "PrepatcherCount=0"
 call :InitializeColors
 call :ValidateInstallation
 if errorlevel 1 exit /b 1
+call :CheckWriteAccess
+if errorlevel 1 exit /b 1
 call :AcquireConfiguratorLock
 if errorlevel 1 exit /b 1
-call :CheckWriteAccess
-if errorlevel 1 (
-    call :ReleaseConfiguratorLock
-    exit /b 1
-)
 call :RefreshEnvironment
 
 REM ============================================================================
@@ -421,22 +418,47 @@ echo Install !SelectedJdkName! into:
 echo   !CD!\!SelectedJdkFolder!
 echo(
 echo 1. Download and install
-echo 2. Cancel
-choice /c 12 /n /m "Select an option: "
-if errorlevel 2 exit /b 0
+echo 2. Download manually
+echo 3. Cancel
+choice /c 123 /n /m "Select an option: "
+if errorlevel 3 exit /b 0
+if errorlevel 2 (
+    call :OfferManualJdkDownload
+    exit /b 0
+)
 
 call :DownloadSelectedJdk
 if errorlevel 1 (
     echo(
     echo !ColorRed!Java installation failed.!ColorReset!
     echo No existing Java installation was changed.
-    pause
+    call :OfferManualJdkDownload
     exit /b 1
 )
 
 call :RefreshEnvironment
 echo(
 echo !ColorGreen!!SelectedJdkName! was installed successfully.!ColorReset!
+pause
+exit /b 0
+
+:OfferManualJdkDownload
+echo(
+echo Manual download for !SelectedJdkName!:
+echo   !SelectedJdkUrl!
+echo(
+echo Extract the downloaded archive beside starsector.exe so Java is located at:
+echo   !CD!\!SelectedJdkFolder!\bin\java.exe
+echo(
+echo 1. Open the download in your web browser
+echo 2. Return without opening it
+choice /c 12 /n /m "Select an option: "
+if errorlevel 2 exit /b 0
+start "" "!SelectedJdkUrl!"
+if errorlevel 1 (
+    echo !ColorRed!Unable to open the download in your browser.!ColorReset!
+    echo Copy the URL shown above and open it manually.
+)
 pause
 exit /b 0
 
@@ -460,7 +482,7 @@ set "JDK_INSTALL_EXTRACT=!CD!\!JdkExtractFolder!"
 set "JDK_INSTALL_DESTINATION=!CD!\!SelectedJdkFolder!"
 set "JDK_INSTALL_MAJOR=!SelectedJdkMajor!"
 
-powershell.exe -NoLogo -NoProfile -NonInteractive -Command "$ErrorActionPreference='Stop'; $ProgressPreference='SilentlyContinue'; Invoke-WebRequest -Uri $env:JDK_INSTALL_URL -OutFile $env:JDK_INSTALL_ZIP; $stream=[IO.File]::OpenRead($env:JDK_INSTALL_ZIP); try { $sha=[Security.Cryptography.SHA256]::Create(); try { $actualHash=([BitConverter]::ToString($sha.ComputeHash($stream))).Replace('-','') } finally { $sha.Dispose() } } finally { $stream.Dispose() }; if ($actualHash -ne $env:JDK_INSTALL_HASH) { throw 'The downloaded JDK checksum does not match.' }; Add-Type -AssemblyName System.IO.Compression.FileSystem; [IO.Compression.ZipFile]::ExtractToDirectory($env:JDK_INSTALL_ZIP,$env:JDK_INSTALL_EXTRACT); $javaFiles=@(Get-ChildItem -LiteralPath $env:JDK_INSTALL_EXTRACT -Filter java.exe -Recurse | Where-Object { -not $_.PSIsContainer -and $_.Directory.Name -eq 'bin' }); if ($javaFiles.Count -ne 1) { throw 'Unable to locate exactly one JDK installation in the archive.' }; $java=$javaFiles[0]; $startInfo=New-Object Diagnostics.ProcessStartInfo; $startInfo.FileName=$java.FullName; $startInfo.Arguments='-version'; $startInfo.UseShellExecute=$false; $startInfo.RedirectStandardError=$true; $startInfo.RedirectStandardOutput=$true; $process=[Diagnostics.Process]::Start($startInfo); $versionText=$process.StandardError.ReadToEnd() + $process.StandardOutput.ReadToEnd(); $process.WaitForExit(); if ($process.ExitCode -ne 0) { throw 'The downloaded Java executable failed its version check.' }; $versionMatch=[regex]::Match($versionText, 'version \"(\d+)'); if (-not $versionMatch.Success -or $versionMatch.Groups[1].Value -ne $env:JDK_INSTALL_MAJOR) { throw 'The downloaded archive contains the wrong Java version.' }; $jdkHome=$java.Directory.Parent.FullName; if (Test-Path -LiteralPath $env:JDK_INSTALL_DESTINATION) { throw 'The JDK destination was created while the download was running.' }; [IO.Directory]::Move($jdkHome,$env:JDK_INSTALL_DESTINATION)"
+powershell.exe -NoLogo -NoProfile -NonInteractive -Command "$ErrorActionPreference='Stop'; trap { Write-Host ('Error: ' + $_.Exception.Message) -ForegroundColor Red; exit 1 }; $ProgressPreference='SilentlyContinue'; Invoke-WebRequest -Uri $env:JDK_INSTALL_URL -OutFile $env:JDK_INSTALL_ZIP; $stream=[IO.File]::OpenRead($env:JDK_INSTALL_ZIP); try { $sha=[Security.Cryptography.SHA256]::Create(); try { $actualHash=([BitConverter]::ToString($sha.ComputeHash($stream))).Replace('-','') } finally { $sha.Dispose() } } finally { $stream.Dispose() }; if ($actualHash -ne $env:JDK_INSTALL_HASH) { throw 'The downloaded JDK checksum does not match.' }; Add-Type -AssemblyName System.IO.Compression.FileSystem; [IO.Compression.ZipFile]::ExtractToDirectory($env:JDK_INSTALL_ZIP,$env:JDK_INSTALL_EXTRACT); $javaFiles=@(Get-ChildItem -LiteralPath $env:JDK_INSTALL_EXTRACT -Filter java.exe -Recurse | Where-Object { -not $_.PSIsContainer -and $_.Directory.Name -eq 'bin' }); if ($javaFiles.Count -ne 1) { throw 'Unable to locate exactly one JDK installation in the archive.' }; $java=$javaFiles[0]; $startInfo=New-Object Diagnostics.ProcessStartInfo; $startInfo.FileName=$java.FullName; $startInfo.Arguments='-version'; $startInfo.UseShellExecute=$false; $startInfo.RedirectStandardError=$true; $startInfo.RedirectStandardOutput=$true; $process=[Diagnostics.Process]::Start($startInfo); $versionText=$process.StandardError.ReadToEnd() + $process.StandardOutput.ReadToEnd(); $process.WaitForExit(); if ($process.ExitCode -ne 0) { throw 'The downloaded Java executable failed its version check.' }; $versionMatch=[regex]::Match($versionText, 'version \"(\d+)'); if (-not $versionMatch.Success -or $versionMatch.Groups[1].Value -ne $env:JDK_INSTALL_MAJOR) { throw 'The downloaded archive contains the wrong Java version.' }; $jdkHome=$java.Directory.Parent.FullName; if (Test-Path -LiteralPath $env:JDK_INSTALL_DESTINATION) { throw 'The JDK destination was created while the download was running.' }; [IO.Directory]::Move($jdkHome,$env:JDK_INSTALL_DESTINATION)"
 if errorlevel 1 (
     call :CleanupJdkInstallation
     exit /b 1
@@ -1664,16 +1686,21 @@ REM Installation and input validation
 REM ============================================================================
 
 :AcquireConfiguratorLock
-2>nul mkdir "!LockDirectory!"
+if exist "!LockDirectory!\." goto :ConfiguratorLockExists
+mkdir "!LockDirectory!" >nul 2>&1
 if errorlevel 1 (
-    echo Another configurator instance is already running, or a stale lock exists:
-    echo   !CD!\!LockDirectory!
-    echo Close the other instance. If none is running, remove that directory manually.
-    pause
-    exit /b 1
+    if exist "!LockDirectory!\." goto :ConfiguratorLockExists
+    goto :WriteAccessFailed
 )
 >"!LockDirectory!\owner.txt" echo Started !DATE! !TIME! by !USERNAME! on !COMPUTERNAME!
 exit /b 0
+
+:ConfiguratorLockExists
+echo Another configurator instance is already running, or a stale lock exists:
+echo   !CD!\!LockDirectory!
+echo Close the other instance. If none is running, remove that directory manually.
+pause
+exit /b 1
 
 :ReleaseConfiguratorLock
 if defined LockDirectory if exist "!LockDirectory!\owner.txt" del /Q "!LockDirectory!\owner.txt" 2>nul
@@ -1696,19 +1723,24 @@ exit /b 1
 
 :CheckWriteAccess
 set "WriteTest=.configure_write_test_!RANDOM!_!RANDOM!.tmp"
->"!WriteTest!" echo test 2>nul
-if errorlevel 1 goto :WriteAccessFailed
+del /Q "!WriteTest!" >nul 2>&1
+copy /Y nul "!WriteTest!" >nul 2>&1
+if not exist "!WriteTest!" goto :WriteAccessFailed
 del /Q "!WriteTest!" 2>nul
 set "WriteTest=mikohime\.configure_write_test_!RANDOM!_!RANDOM!.tmp"
->"!WriteTest!" echo test 2>nul
-if errorlevel 1 goto :WriteAccessFailed
+del /Q "!WriteTest!" >nul 2>&1
+copy /Y nul "!WriteTest!" >nul 2>&1
+if not exist "!WriteTest!" goto :WriteAccessFailed
 del /Q "!WriteTest!" 2>nul
 exit /b 0
 
 :WriteAccessFailed
 del /Q "!WriteTest!" 2>nul
-echo This configurator cannot write to the Starsector installation.
-echo Move Starsector to a writable folder or run this script as administrator.
+echo Administrator access is required for this Starsector installation.
+echo If Starsector is installed under Program Files or Program Files (x86),
+echo close this window,
+echo right-click Configure_Me.cmd, and select "Run as administrator".
+echo Alternatively, move Starsector to a folder your account can write to.
 pause
 exit /b 1
 

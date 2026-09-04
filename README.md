@@ -17,34 +17,52 @@ local or system Java installation.
 
 ### Windows
 
-1. Confirm `Configure_Me.cmd`, `mikohime`, and `starsector-core` are beside
+1. Confirm `Configure_Me.cmd` and `mikohime` folder are inside the same directory as
    `starsector.exe`.
-2. Run `Configure_Me.cmd`.
-3. Select Java and the desired memory, CPU, logging, rendering, cache, and
+2. Run `Configure_Me.cmd`. If Starsector is under `Program Files` or
+   `Program Files (x86)`, right-click it and select **Run as administrator**.
+3. Select a Java version and the desired memory, CPU, logging, rendering, cache, and
    Prepatcher options.
-4. Launch with `Miko_Rouge.bat`.
+4. Launch with `Miko_Rouge.bat`.If Starsector is under `Program Files` or
+   `Program Files (x86)`, right-click it and select **Run as administrator**.
+
+If an automatic Java download fails, the configurator displays the trusted
+Adoptium URL and can open it in your browser for manual installation.
 
 ### Experimental Linux support
 
 > [!WARNING]
-> Linux support is not release-ready. Its build and JNI initialization pass in
+> Linux support is still in development, don't be surprised if you encounter bugs or issues. Its build and JNI initialization pass in
 > CI, but it has not completed real Starsector launch, gameplay, mod, GPU, and
 > distribution testing. Do not treat the Linux build as a supported release.
 
-1. Confirm `Configure_Me.sh`, `mikohime`, and `starsector-core` are beside
-   `starsector.sh` or the `starsector` executable.
-2. Make the configurator executable if the archive tool did not preserve its
-   mode: `chmod +x Configure_Me.sh`.
-3. Run `./Configure_Me.sh`, then launch with `./Miko_Rouge.sh`.
+1. Confirm `Configure_Me.sh` and `mikohime` are in the Starsector installation
+   directory beside `starsector.sh`. 
+2. Open a terminal in the Starsector installation directory and run
+   `./Configure_Me.sh`.
+3. Launch the generated `Miko_Rouge.sh`.
 
-The Linux configurator detects local and system Java 17/27/28 installations,
-selects a memory preset, detects Fast Rendering and related optional
-components, and writes Linux-native paths and classpath separators. It can
+The Linux configurator offers a guided menu and a seven-step flow with
+back/cancel like the Windows configurator. It detects Java 17/27/28 installations, memory,
+CPU cores, and huge-page capability; selects a memory preset or custom heap;
+detects Fast Rendering, FR Resource Cache, StarsectorPrepatcher, and VRAM
+Optimizer; tunes low-core and old-CPU options; picks a logging mode and launcher
+background; and writes Linux-native paths and `:`-separated classpaths. All
+outputs are validated and committed transactionally with rollback. It can
 install the pinned Adoptium builds with checksum validation:
 
 ```bash
 ./Configure_Me.sh --install-java 27
 ./Configure_Me.sh --install-java 28
+```
+
+Non-interactive runs are deterministic through `MIKO_*` environment variables
+(for example `MIKO_JAVA`, `MIKO_HEAP_MIB`, `MIKO_FAST_RENDERING`,
+`MIKO_RESOURCE_CACHE`, `MIKO_PREPATCHER`, `MIKO_LOW_CORE`, `MIKO_OLD_CPU`,
+`MIKO_LARGE_PAGES`, `MIKO_LOGGING`, and `MIKO_BACKGROUND`):
+
+```bash
+MIKO_JAVA=jdk-28+13/bin/java MIKO_HEAP_MIB=8192 ./Configure_Me.sh --non-interactive
 ```
 
 Linux requires the normal Starsector desktop runtime libraries (X11, XRandR,
@@ -75,6 +93,9 @@ checksum-verified Maven artifacts:
 
 - LWJGL/OpenAL: `org.jmonkeyengine:lwjgl-platform:2.9.5:natives-linux`
 - JInput: `net.java.jinput:jinput:2.0.10:natives-all`
+
+Packaged configurator metadata is kept under `mikohime/configurator/shared` to
+avoid adding another directory to the Starsector installation root.
 
 Linux CI loads both the reconstructed JARs and packaged JNI libraries to catch
 ABI or native-loading failures. This is a development check and does not prove

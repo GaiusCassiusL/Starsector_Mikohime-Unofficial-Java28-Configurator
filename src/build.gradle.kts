@@ -4,6 +4,8 @@ import java.util.jar.JarOutputStream
 import java.util.zip.ZipEntry
 import org.gradle.api.GradleException
 import org.gradle.language.jvm.tasks.ProcessResources
+import org.gradle.api.tasks.bundling.Compression
+import org.gradle.api.tasks.bundling.Tar
 
 // ---------------------------------------------------------------------------
 // Mikohime Source Code Test - reproducible multi-module rebuild
@@ -121,6 +123,9 @@ val distDir = layout.buildDirectory.dir("dist")
 val officialStageDir = layout.buildDirectory.dir("staging/official")
 val rebuiltStageDir = layout.buildDirectory.dir("staging/rebuilt")
 val linuxNativeStageDir = layout.buildDirectory.dir("staging/linux-native")
+val stagedLinuxConfigurator = layout.buildDirectory.file("staging/linux-configurator/Configure_Me.sh")
+val stagedLinuxClasspath = layout.buildDirectory.file("staging/linux-configurator/classpath.entries")
+val stagedLinuxDefaultVm = layout.buildDirectory.file("staging/linux-configurator/DefaultVM")
 
 allprojects {
     dependencyLocking {
@@ -344,6 +349,29 @@ val extractLinuxNatives by tasks.registering(Sync::class) {
     }
 }
 
+val prepareLinuxConfigurator by tasks.registering {
+    group = "mikohime"
+    description = "Stages Linux runtime files with Unix LF line endings."
+    val scriptSource = repositoryRoot.file("configurator/linux/Configure_Me.sh")
+    val classpathSource = repositoryRoot.file("configurator/shared/classpath.entries")
+    val defaultVmSource = repositoryRoot.file("distribution/linux/configuration/DefaultVM")
+    inputs.files(scriptSource, classpathSource, defaultVmSource)
+    outputs.files(stagedLinuxConfigurator, stagedLinuxClasspath, stagedLinuxDefaultVm)
+    doLast {
+        listOf(
+            scriptSource.asFile to stagedLinuxConfigurator.get().asFile,
+            classpathSource.asFile to stagedLinuxClasspath.get().asFile,
+            defaultVmSource.asFile to stagedLinuxDefaultVm.get().asFile,
+        ).forEach { (source, output) ->
+            output.parentFile.mkdirs()
+            val normalized = source.readText(Charsets.UTF_8)
+                .replace("\r\n", "\n")
+                .replace('\r', '\n')
+            output.writeText(normalized, Charsets.UTF_8)
+        }
+    }
+}
+
 val assembleWindowsDistribution by tasks.registering(Sync::class) {
     group = "mikohime"
     description = "Builds the complete Windows release directory."
@@ -352,15 +380,15 @@ val assembleWindowsDistribution by tasks.registering(Sync::class) {
     into(distDir.map { it.dir("windows") })
     from(repositoryRoot.file("configurator/windows/Configure_Me.cmd"))
     from(repositoryRoot.files("README.md", "CHANGELOG.md"))
-    into("configurator/shared") {
-        from(repositoryRoot.dir("configurator/shared"))
-    }
     into("mikohime") {
         from(officialStageDir)
         from(rebuiltStageDir)
         from(repositoryRoot.dir("distribution/shared/configuration"))
         from(repositoryRoot.dir("distribution/shared/resources"))
         from(repositoryRoot.dir("distribution/windows/configuration"))
+        into("configurator/shared") {
+            from(repositoryRoot.dir("configurator/shared"))
+        }
         into("windows") {
             from(repositoryRoot.dir("distribution/windows/native"))
         }
@@ -373,24 +401,30 @@ val assembleWindowsDistribution by tasks.registering(Sync::class) {
 val assembleLinuxDistribution by tasks.registering(Sync::class) {
     group = "mikohime"
     description = "Builds the complete 64-bit Linux release directory."
-    dependsOn(resolveOfficialJars, copyRebuiltJars, writeArtifactReport, extractLinuxNatives)
+    dependsOn(resolveOfficialJars, copyRebuiltJars, writeArtifactReport, extractLinuxNatives, prepareLinuxConfigurator)
     duplicatesStrategy = DuplicatesStrategy.FAIL
     into(distDir.map { it.dir("linux") })
-    from(repositoryRoot.file("configurator/linux/Configure_Me.sh")) {
+    from(stagedLinuxConfigurator) {
         filePermissions {
             unix("rwxr-xr-x")
         }
     }
     from(repositoryRoot.files("README.md", "CHANGELOG.md"))
-    into("configurator/shared") {
-        from(repositoryRoot.dir("configurator/shared"))
-    }
     into("mikohime") {
         from(officialStageDir)
         from(rebuiltStageDir)
         from(repositoryRoot.dir("distribution/shared/configuration"))
         from(repositoryRoot.dir("distribution/shared/resources"))
-        from(repositoryRoot.dir("distribution/linux/configuration"))
+        from(repositoryRoot.dir("distribution/linux/configuration")) {
+            exclude("DefaultVM")
+        }
+        from(stagedLinuxDefaultVm)
+        into("configurator/shared") {
+            from(repositoryRoot.dir("configurator/shared")) {
+                exclude("classpath.entries")
+            }
+            from(stagedLinuxClasspath)
+        }
         into("linux") {
             from(linuxNativeStageDir)
         }
@@ -398,6 +432,24 @@ val assembleLinuxDistribution by tasks.registering(Sync::class) {
     doLast {
         println("Linux distribution assembled at: ${distDir.get().dir("linux").asFile.absolutePath}")
     }
+}
+
+val packageLinuxDistribution by tasks.registering(Tar::class) {
+    group = "distribution"
+    description = "Packages the experimental Linux distribution with executable launchers."
+    dependsOn(assembleLinuxDistribution)
+    archiveFileName.set("Mikohime-linux-x64-experimental.tar.gz")
+    destinationDirectory.set(layout.buildDirectory.dir("packages"))
+    compression = Compression.GZIP
+    from(distDir.map { it.dir("linux") })
+    eachFile {
+        mode = if (name == "Configure_Me.sh") {
+            0b111101101
+        } else {
+            0b110100100
+        }
+    }
+    dirMode = 0b111101101
 }
 
 val assembleDistribution by tasks.registering {

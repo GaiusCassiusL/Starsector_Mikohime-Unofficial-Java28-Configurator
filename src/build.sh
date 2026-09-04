@@ -13,4 +13,5 @@ if [[ -z "${JAVA_HOME:-}" || ! -x "$JAVA_HOME/bin/javac" ]]; then
 fi
 
 export PATH="$JAVA_HOME/bin:$PATH"
-exec bash ./gradlew clean verify assembleLinuxDistribution --no-daemon --console=plain
+bash ./tooling/verification/linux-configurator-tests.sh
+exec bash ./gradlew clean verify packageLinuxDistribution --no-daemon --console=plain

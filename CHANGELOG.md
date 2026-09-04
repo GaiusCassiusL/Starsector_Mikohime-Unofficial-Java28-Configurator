@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [v0.7.5] - 2026-09-03
 
 ### Added
 
@@ -10,6 +10,11 @@
 - Added Linux JNI initialization checks and cross-platform GitHub Actions
   release packaging.
 - Added shared declarative Java, component, classpath, and memory configuration.
+- Added Linux configurator integration coverage for Java versions, optional
+  components, generated arguments, flat and nested layouts, locking, rollback,
+  paths containing spaces, and archive safety.
+- Added a Windows manual Java-download option and browser fallback when
+  automatic installation fails.
 
 ### Changed
 
@@ -18,6 +23,24 @@
 - Split JVM templates and native assets by platform.
 - Changed build output to `src/build/dist/windows` and
   `src/build/dist/linux`.
+- Expanded the Linux configurator to match the Windows guided setup,
+  component detection, tuning, logging, background, Java installation, and
+  transactional file-generation capabilities.
+- Moved packaged configurator metadata under `mikohime/configurator/shared`.
+- Changed Linux release packaging to a mode-preserving `.tar.gz` archive.
+- Improved Windows write-access guidance for installations under Program Files.
+
+### Fixed
+
+- Fixed Linux support for Starsector's native flat installation layout.
+- Fixed Linux classpaths being split by Windows CRLF line endings.
+- Fixed Linux Java archives rejecting safe Adoptium symlinks.
+- Fixed Linux relative Java paths, source-tree invocation, and launcher working
+  directory handling.
+- Fixed unsafe Prepatcher folder names corrupting Java argument-file parsing.
+- Fixed stale Java 28 Windows download checksum metadata.
+- Fixed Windows permission failures being incorrectly reported as stale
+  configurator locks.
 
 ### Compatibility
 
@@ -25,7 +48,7 @@
   than by Mikohime.
 - Linux packages target x86-64 and use native libraries compatible with the
   reconstructed LWJGL 2.9.5 and JInput JNI interfaces.
-- Windows behavior and native libraries remain unchanged.
+- Windows game-launch behavior and native libraries remain unchanged.
 
 ## [v0.7.1] - 2026-09-02
 
