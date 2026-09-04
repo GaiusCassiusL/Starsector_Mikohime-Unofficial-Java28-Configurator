@@ -60,7 +60,7 @@ make_root() {
     # make_root DIR  -> a minimal valid Linux Starsector installation
     local d="$1" b n
     rm -rf -- "$d"
-    mkdir -p -- "$d/starsector-core" "$d/mods" "$d/mikohime/bg" "$d/mikohime/linux" "$d/mikohime/configurator" "$d/fakejava"
+    mkdir -p -- "$d/mods" "$d/mikohime/bg" "$d/mikohime/linux" "$d/mikohime/configurator" "$d/fakejava"
     cp -r -- "$SHARED_SRC" "$d/mikohime/configurator/shared"
     cp -- "$CONFIG" "$d/Configure_Me.sh"
     chmod +x "$d/Configure_Me.sh"
@@ -72,20 +72,17 @@ make_root() {
     for n in liblwjgl64.so libopenal64.so libjinput-linux64.so; do printf 'SO\n' > "$d/mikohime/linux/$n"; done
     printf '#!/usr/bin/env bash\necho starsector\n' > "$d/starsector.sh"
     chmod +x "$d/starsector.sh"
+    printf 'JAR\n' > "$d/fs.common_obf.jar"
     make_java "$d/fakejava/java17" '17.0.11'
     make_java "$d/fakejava/java27" '27-ea'
     make_java "$d/fakejava/java28" '28-ea'
 }
 
-make_flat_root() {
-    local d="$1"
-    make_root "$d"
-    rmdir -- "$d/starsector-core"
-    printf 'JAR\n' > "$d/fs.common_obf.jar"
+add_fast_rendering() {
+    printf 'FR\n' > "$1/fr.jar"
+    printf 'FRA\n' > "$1/fr.agent.jar"
 }
-
-add_fast_rendering() { printf 'FR\n' > "$1/starsector-core/fr.jar"; printf 'FRA\n' > "$1/starsector-core/fr.agent.jar"; }
-add_resource_cache() { printf 'RC\n' > "$1/starsector-core/fr-resource-cache-agent.jar"; }
+add_resource_cache() { printf 'RC\n' > "$1/fr-resource-cache-agent.jar"; }
 
 add_prepatcher() {
     # add_prepatcher DIR FOLDER VERSION_JSON_FRAGMENT
@@ -105,19 +102,15 @@ run_gen() {
 # -----------------------------------------------------------------------------
 mkdir -p -- "$WORK"
 
-# --- Version matrix: 17, 27, 28 with FR + Resource Cache + Prepatcher --------
+# --- Version matrix: 17, 27, 28 ----------------------------------------------
 for ver in 17 27 28; do
-    section "Java $ver generation (FR + Resource Cache + Prepatcher)"
+    section "Java $ver generation"
     root="$WORK/ver$ver"
     make_root "$root"
-    add_fast_rendering "$root"
-    add_resource_cache "$root"
     add_prepatcher "$root" "StarsectorPrepatcher" '"version":"0.18.4"'
     if run_gen "$root" \
         MIKO_JAVA="$root/fakejava/java$ver" \
         MIKO_HEAP_MIB=8192 \
-        MIKO_FAST_RENDERING=1 \
-        MIKO_RESOURCE_CACHE=1 \
         MIKO_PREPATCHER=1 \
         MIKO_LOGGING=Full; then
         ok "generation exit 0"
@@ -134,19 +127,17 @@ for ver in 17 27 28; do
     assert_true "[[ \"\$(awk 'NF{l=\$0} END{print l}' '$simple')\" == 'com.fs.starfarer.StarfarerLauncher' ]]" "launcher class is final line"
     assert_havex "$simple" '-Xms8192m' "heap min set"
     assert_havex "$simple" '-Xmx8192m' "heap max set"
-    assert_have "$simple" '-classpath fr.jar:' "classpath prefixed with fr.jar and FR enabled"
+    assert_nothave "$simple" '-classpath fr.jar:' "Fast Rendering is absent from Linux classpath"
     cpline="$(grep -E '^-classpath ' "$simple" | head -n1)"
     assert_true "[[ '$cpline' == *:* && '$cpline' != *';'* ]]" "classpath uses ':' not ';'"
-    assert_havex "$simple" '-javaagent:fr.agent.jar' "fast rendering agent present"
-    assert_have "$simple" '-javaagent:fr-resource-cache-agent.jar' "resource cache agent present"
-    assert_have "$simple" 'StarsectorPrepatcherAgent.jar' "prepatcher agent present"
-    assert_order "$simple" '-javaagent:fr-resource-cache-agent.jar' '-javaagent:fr.agent.jar' "resource cache before fast rendering"
-    assert_order "$simple" '-javaagent:fr.agent.jar' 'StarsectorPrepatcherAgent.jar' "fast rendering before prepatcher"
-    assert_order "$simple" 'StarsectorPrepatcherAgent.jar' '-classpath ' "prepatcher before classpath"
-    assert_have "$simple" '-Djava.library.path=../mikohime/linux' "linux native path"
-    assert_have "$simple" '-Dcom.fs.starfarer.settings.paths.saves=../saves' "linux saves path"
-    assert_have "$launcher" '@../Miko_Simple.txt' "launcher references argfile"
-    assert_have "$launcher" '../fakejava/java'"$ver" "launcher references relative java"
+    assert_nothave "$simple" '-javaagent:fr.agent.jar' "Fast Rendering agent is absent"
+    assert_nothave "$simple" '-javaagent:fr-resource-cache-agent.jar' "Resource Cache agent is absent"
+    assert_nothave "$simple" 'StarsectorPrepatcherAgent.jar' "installed Prepatcher is ignored on Linux"
+    assert_have "$simple" '-Djava.library.path=mikohime/linux' "linux native path"
+    assert_have "$simple" '-Dcom.fs.starfarer.settings.paths.saves=./saves' "linux saves path"
+    assert_have "$simple" '-Dcom.fs.starfarer.settings.linux=true' "Linux runtime marker present"
+    assert_have "$launcher" '@Miko_Simple.txt' "launcher references argfile"
+    assert_have "$launcher" './fakejava/java'"$ver" "launcher references relative java"
     case "$ver" in
         17)
             assert_nothave "$simple" '-XX:-UseCompactObjectHeaders' "no compact-header toggle on 17"
@@ -170,7 +161,7 @@ for ver in 17 27 28; do
             assert_havex "$simple" '-XX:+AlwaysPreTouchStacks' "pretouch stacks on 28"
             assert_havex "$simple" '--enable-final-field-mutation=ALL-UNNAMED' "final field mutation on 28"
             assert_havex "$simple" '-XX:+ErrorLogSecondaryErrorDetails' "secondary error details on 28"
-            assert_have "$simple" '-Djava.library.path=../mikohime/linux' "linux native path on 28"
+            assert_have "$simple" '-Djava.library.path=mikohime/linux' "linux native path on 28"
             ;;
     esac
 done
@@ -195,7 +186,7 @@ if grep -Eq '^-XX:\+PrintCommandLineFlags$' "$simple"; then bad "Minimal must no
 section "Fast Rendering presence semantics"
 root="$WORK/fronly"
 make_root "$root"
-printf 'FR\n' > "$root/starsector-core/fr.jar"   # fr.jar only, no fr.agent.jar
+printf 'FR\n' > "$root/fr.jar"   # fr.jar only, no fr.agent.jar
 add_resource_cache "$root"
 run_gen "$root" MIKO_JAVA="$root/fakejava/java28" MIKO_HEAP_MIB=4096 MIKO_FAST_RENDERING=1 MIKO_RESOURCE_CACHE=1
 simple="$root/Miko_Simple.txt"
@@ -204,31 +195,24 @@ assert_nothave "$simple" '-javaagent:fr-resource-cache-agent.jar' "resource cach
 assert_nothave "$simple" '-classpath fr.jar:' "classpath has no fr.jar when FR off"
 assert_have "$simple" '-classpath ' "classpath present when FR off"
 
-root="$WORK/frboth_off"
+root="$WORK/frboth"
 make_root "$root"; add_fast_rendering "$root"
-run_gen "$root" MIKO_JAVA="$root/fakejava/java28" MIKO_HEAP_MIB=4096 MIKO_FAST_RENDERING=0
-assert_nothave "$root/Miko_Simple.txt" '-javaagent:fr.agent.jar' "MIKO_FAST_RENDERING=0 disables FR"
+add_resource_cache "$root"
+run_gen "$root" MIKO_JAVA="$root/fakejava/java28" MIKO_HEAP_MIB=4096 MIKO_FAST_RENDERING=1 MIKO_RESOURCE_CACHE=1
+assert_have "$root/Miko_Simple.txt" '-javaagent:fr.agent.jar' "complete Fast Rendering pair is enabled"
+assert_have "$root/Miko_Simple.txt" '-javaagent:fr-resource-cache-agent.jar' "Resource Cache is enabled with Fast Rendering"
+assert_have "$root/Miko_Simple.txt" '-classpath fr.jar:' "fr.jar is first on the classpath"
 
-# --- Prepatcher compatible / incompatible -----------------------------------
-section "Prepatcher metadata selection"
+# --- Prepatcher is unsupported ----------------------------------------------
+section "Prepatcher excluded"
 root="$WORK/prepatcher"
 make_root "$root"
-add_prepatcher "$root" "StarsectorPrepatcher-old" '"version":"0.1.0"'
-add_prepatcher "$root" "StarsectorPrepatcher-new" '"version":{"major":0,"minor":18,"patch":4}'
+add_prepatcher "$root" "StarsectorPrepatcher" '"version":"0.19.0"'
 run_gen "$root" MIKO_JAVA="$root/fakejava/java28" MIKO_HEAP_MIB=4096 MIKO_PREPATCHER=1
 simple="$root/Miko_Simple.txt"; info="$root/Miko_Info.txt"
-assert_have "$simple" '../mods/StarsectorPrepatcher-new/agent/StarsectorPrepatcherAgent.jar' "compatible (object-form) prepatcher selected"
-assert_nothave "$simple" 'StarsectorPrepatcher-old' "incompatible prepatcher not selected"
-assert_have "$info" 'incompatible or unreadable installation' "info reports incompatible count"
-run_gen "$root" MIKO_JAVA="$root/fakejava/java28" MIKO_HEAP_MIB=4096 MIKO_PREPATCHER=0
-assert_nothave "$root/Miko_Simple.txt" 'StarsectorPrepatcherAgent.jar' "MIKO_PREPATCHER=0 disables prepatcher"
-
-root="$WORK/prepatcher-unsafe-name"
-make_root "$root"
-add_prepatcher "$root" 'StarsectorPrepatcher"invalid' '"version":"0.19.0"'
-run_gen "$root" MIKO_JAVA="$root/fakejava/java28" MIKO_HEAP_MIB=4096 MIKO_PREPATCHER=1
-assert_nothave "$root/Miko_Simple.txt" 'StarsectorPrepatcherAgent.jar' "argfile-unsafe prepatcher name rejected"
-assert_have "$root/Miko_Info.txt" 'incompatible or unreadable installation' "unsafe prepatcher reported incompatible"
+assert_nothave "$simple" 'StarsectorPrepatcherAgent.jar' "MIKO_PREPATCHER cannot enable Prepatcher"
+assert_nothave "$info" 'Prepatcher' "configuration summary omits Prepatcher"
+assert_true "[[ \"\$RUN_OUT\" != *'Prepatcher'* ]]" "non-interactive output omits Prepatcher"
 
 # --- Memory validation ------------------------------------------------------
 section "Memory validation"
@@ -272,15 +256,13 @@ fi
 section "Paths containing spaces"
 root="$WORK/with space/game root"
 make_root "$root"
-add_fast_rendering "$root"
 add_prepatcher "$root" "StarsectorPrepatcher Test" '"version":"0.19.0"'
 if run_gen "$root" MIKO_JAVA="$root/fakejava/java28" MIKO_HEAP_MIB=4096 MIKO_FAST_RENDERING=1 MIKO_PREPATCHER=1; then
     ok "generation succeeds under a path with spaces"
 else
     bad "generation under spaced path ($RUN_OUT)"
 fi
-assert_have "$root/Miko_Simple.txt" 'StarsectorPrepatcher Test/agent/StarsectorPrepatcherAgent.jar' "spaced prepatcher folder handled"
-assert_have "$root/Miko_Simple.txt" '"-javaagent:../mods/StarsectorPrepatcher Test/agent/StarsectorPrepatcherAgent.jar"' "spaced agent token is quoted"
+assert_nothave "$root/Miko_Simple.txt" 'StarsectorPrepatcherAgent.jar' "Prepatcher remains excluded under a spaced path"
 assert_exec "$root/Miko_Rouge.sh" "launcher executable under spaced path"
 
 # --- Background staging as part of the transaction --------------------------
@@ -294,14 +276,17 @@ assert_have "$root/Miko_Info.txt" 'Launcher background: Gamma' "info records bac
 # --- Native Linux flat layout and CRLF input handling ------------------------
 section "Flat Linux layout"
 root="$WORK/flat"
-make_flat_root "$root"
+make_root "$root"
+add_fast_rendering "$root"
 if run_gen "$root" MIKO_JAVA="$root/fakejava/java28" MIKO_HEAP_MIB=4096; then
     ok "flat-layout generation succeeds"
 else
     bad "flat-layout generation succeeds ($RUN_OUT)"
 fi
 simple="$root/Miko_Simple.txt"
-assert_have "$simple" '-classpath mikohime/janino-3.0.12.jar:mikohime/commons-compiler-3.0.12.jar' "flat classpath is one argument"
+assert_have "$simple" '-classpath fr.jar:mikohime/janino-3.0.12.jar:mikohime/commons-compiler-3.0.12.jar' "flat classpath is one argument"
+assert_have "$simple" '-classpath fr.jar:' "flat Linux classpath includes Fast Rendering"
+assert_have "$simple" '-javaagent:fr.agent.jar' "flat Linux launcher includes Fast Rendering agent"
 assert_have "$simple" '-Djava.library.path=mikohime/linux' "flat native path"
 assert_have "$root/Miko_Rouge.sh" '@Miko_Simple.txt' "flat launcher references root argfile"
 if grep -q $'\r' "$simple"; then
@@ -310,14 +295,16 @@ else
     ok "generated argument file uses LF endings"
 fi
 
+assert_true "[[ ! -e '$root/starsector-core' ]]" "Linux fixture has no starsector-core directory"
+
 section "Launcher path resolution"
 root="$WORK/relative-java"
 make_root "$root"
 run_gen "$root" MIKO_JAVA=fakejava/java28 MIKO_HEAP_MIB=4096
-assert_have "$root/Miko_Rouge.sh" '../fakejava/java28' "relative Java path resolved for nested runtime"
+assert_have "$root/Miko_Rouge.sh" './fakejava/java28' "relative Java path resolved for flat runtime"
 
 root="$WORK/script-location"
-make_flat_root "$root"
+make_root "$root"
 RUN_OUT="$(cd -- "$WORK" && env -i HOME="$HOME" PATH="$PATH" NO_COLOR=1 \
     MIKO_JAVA="$root/fakejava/java28" MIKO_HEAP_MIB=4096 \
     bash "$root/Configure_Me.sh" --non-interactive 2>&1)"
@@ -328,7 +315,7 @@ else
 fi
 
 root="$WORK/source-script"
-make_flat_root "$root"
+make_root "$root"
 RUN_OUT="$(cd -- "$root" && env -i HOME="$HOME" PATH="$PATH" NO_COLOR=1 \
     MIKO_JAVA="$root/fakejava/java28" MIKO_HEAP_MIB=4096 \
     bash "$CONFIG" --non-interactive 2>&1)"
@@ -337,6 +324,28 @@ if [[ $? -eq 0 ]]; then
 else
     bad "repository configurator uses the current game root ($RUN_OUT)"
 fi
+
+# --- Interactive installer failure fallback ---------------------------------
+section "Interactive installer failure fallback"
+root="$WORK/installer-fallback"
+make_root "$root"
+RUN_OUT="$(cd -- "$root" && env -i HOME="$HOME" PATH="$PATH" NO_COLOR=1 \
+    MIKO_CONFIGURATOR_LIBRARY_MODE=1 bash -c '
+        source ./Configure_Me.sh
+        initialize_colors
+        load_shared_metadata
+        prompt_line() { REPLY_LINE=B; }
+        install_java() { die "simulated Java download failure"; }
+        install_java_interactive 28 || true
+        printf "JAVA_FALLBACK_RETURNED\n"
+        install_resource_cache() { die "simulated Resource Cache download failure"; }
+        install_resource_cache_interactive || true
+        printf "CACHE_FALLBACK_RETURNED\n"
+    ' 2>&1)"
+assert_true "[[ \"\$RUN_OUT\" == *'Manual Java 28 installation:'* ]]" "Java failure shows manual installation guidance"
+assert_true "[[ \"\$RUN_OUT\" == *'JAVA_FALLBACK_RETURNED'* ]]" "Java failure returns control to the menu caller"
+assert_true "[[ \"\$RUN_OUT\" == *'Manual FR Resource Cache installation:'* ]]" "Resource Cache failure shows manual installation guidance"
+assert_true "[[ \"\$RUN_OUT\" == *'CACHE_FALLBACK_RETURNED'* ]]" "Resource Cache failure returns control to the menu caller"
 
 # --- Archive path safety -----------------------------------------------------
 section "Archive path safety"

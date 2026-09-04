@@ -27,22 +27,9 @@ BG_DIR="$MIKOHIME_DIR/bg"
 DEFAULT_VM="$MIKOHIME_DIR/DefaultVM"
 LOCK_DIR="$GAME_ROOT/.configure_me.lock"
 
-# Native Starsector Linux installations keep the game JARs in the installation
-# root. A nested starsector-core directory is also supported for converted or
-# test layouts.
-if [[ -d "$GAME_ROOT/starsector-core" ]]; then
-    CORE_LAYOUT="nested"
-    CORE_DIR="$GAME_ROOT/starsector-core"
-    RUNTIME_ROOT_PREFIX=".."
-    RUNTIME_MIKOHIME_PREFIX="../mikohime"
-    RUNTIME_ARGFILE="../Miko_Simple.txt"
-else
-    CORE_LAYOUT="flat"
-    CORE_DIR="$GAME_ROOT"
-    RUNTIME_ROOT_PREFIX="."
-    RUNTIME_MIKOHIME_PREFIX="mikohime"
-    RUNTIME_ARGFILE="Miko_Simple.txt"
-fi
+# Native Linux Starsector installations use one flat game directory. All game
+# JARs, Fast Rendering files, and generated launch files live beside
+# starsector.sh.
 
 # Unique transaction identifier for pending / backup files.
 TRANSACTION_ID="$$_$(date +%s 2>/dev/null || echo 0)_${RANDOM}${RANDOM}"
@@ -59,9 +46,6 @@ HEAP_MIB=""
 HEAP_DESCRIPTION=""
 FAST_RENDERING_STATUS="Disabled"
 RESOURCE_CACHE_STATUS="Disabled"
-PREPATCHER_STATUS="Disabled"
-PREPATCHER_FOLDER=""
-PREPATCHER_AGENT=""
 LOW_CORE_MODE="No"
 OLD_CPU_MODE="No"
 LARGE_PAGES_ENABLED="No"
@@ -100,14 +84,11 @@ load_shared_metadata() {
     [[ -f "$SHARED_DIR/classpath.entries" ]] ||
         die "Missing shared configurator data: classpath.entries"
 
-    FastRenderingReleasesUrl="$(read_property FastRenderingReleasesUrl "$SHARED_DIR/components.properties")"
+    FastRenderingReleasesUrl="$(read_property FastRenderingLinuxReleasesUrl "$SHARED_DIR/components.properties")"
     ResourceCacheReleasesUrl="$(read_property ResourceCacheReleasesUrl "$SHARED_DIR/components.properties")"
     ResourceCacheLatestReleaseApi="$(read_property ResourceCacheLatestReleaseApi "$SHARED_DIR/components.properties")"
     ResourceCacheAssetUrlPrefix="$(read_property ResourceCacheAssetUrlPrefix "$SHARED_DIR/components.properties")"
-    PrepatcherReleasesUrl="$(read_property PrepatcherReleasesUrl "$SHARED_DIR/components.properties")"
     VramOptimizerReleasesUrl="$(read_property VramOptimizerReleasesUrl "$SHARED_DIR/components.properties")"
-    MinimumPrepatcherVersion="$(read_property MinimumPrepatcherVersion "$SHARED_DIR/components.properties")"
-    [[ -n "$MinimumPrepatcherVersion" ]] || MinimumPrepatcherVersion="0.0.0"
 
     # Load memory presets (index|megabytes|description) into associative arrays.
     declare -gA HEAP_VALUE=()
@@ -128,7 +109,7 @@ load_shared_metadata() {
     while IFS= read -r entry || [[ -n "$entry" ]]; do
         entry="${entry%$'\r'}"
         [[ -n "$entry" && "$entry" != \#* ]] || continue
-        if [[ "$CORE_LAYOUT" == "flat" && "$entry" == ../mikohime/* ]]; then
+        if [[ "$entry" == ../mikohime/* ]]; then
             entry="${entry#../}"
         fi
         BASE_CLASSPATH+="${BASE_CLASSPATH:+:}$entry"
@@ -213,24 +194,6 @@ is_positive_integer() {
     [[ "${1:-}" =~ ^[0-9]+$ && "${1:-}" != "0" ]]
 }
 
-version_ge() {
-    # Return 0 (true) when $1 >= $2 comparing dotted numeric components.
-    awk -v a="$1" -v b="$2" '
-        BEGIN {
-            na = split(a, pa, ".")
-            nb = split(b, pb, ".")
-            n = (na > nb) ? na : nb
-            for (i = 1; i <= n; i++) {
-                x = (i <= na) ? pa[i] + 0 : 0
-                y = (i <= nb) ? pb[i] + 0 : 0
-                if (x > y) { exit 0 }
-                if (x < y) { exit 1 }
-            }
-            exit 0
-        }
-    '
-}
-
 java_major() {
     # Print the Java major version number for the java executable in $1.
     "$1" -version 2>&1 | sed -n 's/.*version "\([0-9][0-9]*\).*/\1/p' | head -n 1
@@ -243,40 +206,6 @@ is_supported_major() {
     esac
 }
 
-parse_mod_version() {
-    # Print a normalized dotted version parsed from a mod_info.json file, or
-    # return non-zero when no usable version is present. Works without jq or
-    # a guaranteed Python interpreter.
-    local file="$1" raw ver obj major minor patch
-    [[ -f "$file" ]] || return 1
-    raw="$(tr -d '\r\n' < "$file" 2>/dev/null)" || return 1
-    [[ -n "$raw" ]] || return 1
-
-    # String form: "version" : "0.18.4-rc1"
-    ver="$(printf '%s' "$raw" | sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
-    if [[ -n "$ver" ]]; then
-        ver="$(printf '%s' "$ver" | grep -oE '[0-9]+(\.[0-9]+){1,3}' | head -n 1)"
-        if [[ -n "$ver" ]]; then
-            printf '%s' "$ver"
-            return 0
-        fi
-    fi
-
-    # Object form: "version" : { "major":0, "minor":18, "patch":4 }
-    obj="$(printf '%s' "$raw" | sed -n 's/.*"version"[[:space:]]*:[[:space:]]*{\([^}]*\)}.*/\1/p')"
-    if [[ -n "$obj" ]]; then
-        major="$(printf '%s' "$obj" | sed -n 's/.*"major"[[:space:]]*:[[:space:]]*"\{0,1\}\([0-9][0-9]*\).*/\1/p')"
-        minor="$(printf '%s' "$obj" | sed -n 's/.*"minor"[[:space:]]*:[[:space:]]*"\{0,1\}\([0-9][0-9]*\).*/\1/p')"
-        patch="$(printf '%s' "$obj" | sed -n 's/.*"patch"[[:space:]]*:[[:space:]]*"\{0,1\}\([0-9][0-9]*\).*/\1/p')"
-        [[ -n "$major" ]] || return 1
-        ver="$major"
-        [[ -n "$minor" ]] && ver="$ver.$minor"
-        [[ -n "$patch" ]] && ver="$ver.$patch"
-        printf '%s' "$ver"
-        return 0
-    fi
-    return 1
-}
 # -----------------------------------------------------------------------------
 # Lock, write-access, and installation validation
 # -----------------------------------------------------------------------------
@@ -331,12 +260,8 @@ check_write_access() {
 validate_installation() {
     [[ -x "$GAME_ROOT/starsector.sh" || -x "$GAME_ROOT/starsector" ]] ||
         die "This is not a Linux Starsector installation (missing an executable starsector.sh or starsector)."
-    if [[ "$CORE_LAYOUT" == "flat" ]]; then
-        [[ -f "$GAME_ROOT/fs.common_obf.jar" ]] ||
-            die "This flat Linux installation is missing fs.common_obf.jar."
-    else
-        [[ -d "$CORE_DIR" ]] || die "Required directory starsector-core was not found."
-    fi
+    [[ -f "$GAME_ROOT/fs.common_obf.jar" ]] ||
+        die "This Linux installation is missing fs.common_obf.jar beside starsector.sh."
     [[ -d "$MIKOHIME_DIR" ]] || die "Required directory mikohime was not found."
     [[ -f "$DEFAULT_VM" ]] || die "The Linux Mikohime DefaultVM preset is missing: $DEFAULT_VM"
 
@@ -519,27 +444,27 @@ install_java() {
 # Optional component detection
 # -----------------------------------------------------------------------------
 FAST_RENDERING_AVAILABLE="No"
+FAST_RENDERING_DETECTED="No"
 RESOURCE_CACHE_AVAILABLE="No"
+RESOURCE_CACHE_DETECTED="No"
 VRAM_OPTIMIZER_AVAILABLE="No"
-declare -a PREPATCHER_FOLDERS=()
-declare -a PREPATCHER_VERSIONS=()
-PREPATCHER_COUNT=0
-INCOMPATIBLE_PREPATCHER_COUNT=0
 
 detect_optional_components() {
-    # Fast Rendering requires BOTH jars.
     FAST_RENDERING_AVAILABLE="No"
-    if [[ -f "$CORE_DIR/fr.jar" && -f "$CORE_DIR/fr.agent.jar" ]]; then
+    FAST_RENDERING_DETECTED="No"
+    if [[ -s "$GAME_ROOT/fr.jar" && -s "$GAME_ROOT/fr.agent.jar" ]]; then
+        FAST_RENDERING_DETECTED="Yes"
         FAST_RENDERING_AVAILABLE="Yes"
     fi
 
-    # FR Resource Cache agent must exist and be non-empty.
     RESOURCE_CACHE_AVAILABLE="No"
-    if [[ -s "$CORE_DIR/fr-resource-cache-agent.jar" ]]; then
-        RESOURCE_CACHE_AVAILABLE="Yes"
+    RESOURCE_CACHE_DETECTED="No"
+    if [[ -s "$GAME_ROOT/fr-resource-cache-agent.jar" ]]; then
+        RESOURCE_CACHE_DETECTED="Yes"
+        [[ "$FAST_RENDERING_AVAILABLE" == Yes ]] &&
+            RESOURCE_CACHE_AVAILABLE="Yes"
     fi
 
-    detect_prepatcher_installations
     detect_vram_optimizer
 }
 
@@ -556,48 +481,6 @@ detect_vram_optimizer() {
             return 0
         fi
     done < <(find "$MODS_DIR" -maxdepth 1 -mindepth 1 -type d 2>/dev/null)
-}
-
-detect_prepatcher_installations() {
-    PREPATCHER_FOLDERS=()
-    PREPATCHER_VERSIONS=()
-    PREPATCHER_COUNT=0
-    INCOMPATIBLE_PREPATCHER_COUNT=0
-    [[ -d "$MODS_DIR" ]] || return 0
-
-    local dir name agent meta ver
-    while IFS= read -r dir; do
-        [[ -n "$dir" ]] || continue
-        (( PREPATCHER_COUNT + INCOMPATIBLE_PREPATCHER_COUNT >= 18 )) && break
-        name="$(basename -- "$dir")"
-        agent="$dir/agent/StarsectorPrepatcherAgent.jar"
-        [[ -s "$agent" ]] || continue
-        if [[ "$name" == *['"'\=\\]* || "$name" == *$'\r'* || "$name" == *$'\n'* ]]; then
-            (( INCOMPATIBLE_PREPATCHER_COUNT++ ))
-            continue
-        fi
-        meta="$dir/mod_info.json"
-        if ! ver="$(parse_mod_version "$meta")" || [[ -z "$ver" ]]; then
-            (( INCOMPATIBLE_PREPATCHER_COUNT++ ))
-            continue
-        fi
-        if version_ge "$ver" "$MinimumPrepatcherVersion"; then
-            if (( PREPATCHER_COUNT < 9 )); then
-                PREPATCHER_FOLDERS+=("$name")
-                PREPATCHER_VERSIONS+=("$ver")
-                (( PREPATCHER_COUNT++ ))
-            fi
-        else
-            (( INCOMPATIBLE_PREPATCHER_COUNT++ ))
-        fi
-    done < <(find "$MODS_DIR" -maxdepth 1 -mindepth 1 -type d -name 'StarsectorPrepatcher*' 2>/dev/null | sort)
-}
-
-select_prepatcher_by_folder() {
-    # Configure the -javaagent path relative to the runtime working directory.
-    PREPATCHER_FOLDER="$1"
-    PREPATCHER_AGENT="-javaagent:${RUNTIME_ROOT_PREFIX}/mods/$1/agent/StarsectorPrepatcherAgent.jar"
-    PREPATCHER_STATUS="Enabled"
 }
 
 # -----------------------------------------------------------------------------
@@ -709,13 +592,13 @@ refresh_environment() {
 # FR Resource Cache installer (GitHub latest release)
 # -----------------------------------------------------------------------------
 install_resource_cache() {
-    local dest="$CORE_DIR/fr-resource-cache-agent.jar"
+    local dest="$GAME_ROOT/fr-resource-cache-agent.jar"
     if [[ -e "$dest" ]]; then
         if [[ -s "$dest" ]]; then
             printf '%sFR Resource Cache is already installed.%s\n' "${ColorGreen:-}" "${ColorReset:-}"
             return 0
         fi
-        die "The destination file exists but is empty or invalid: starsector-core/fr-resource-cache-agent.jar"
+        die "The destination file exists but is empty or invalid: $dest"
     fi
 
     local tool
@@ -790,8 +673,8 @@ install_resource_cache() {
 
     [[ ! -e "$dest" ]] || die "The destination file appeared while the download was running."
     mv -- "$staged" "$dest" || die "Unable to install the FR Resource Cache agent."
-    printf '%sThe latest FR Resource Cache release was installed successfully.%s\n' \
-        "${ColorGreen:-}" "${ColorReset:-}"
+    printf '%sThe latest FR Resource Cache release was installed successfully:%s\n  %s\n' \
+        "${ColorGreen:-}" "${ColorReset:-}" "$dest"
 }
 
 # -----------------------------------------------------------------------------
@@ -922,14 +805,9 @@ append_jvm_logger_options() {
 
 append_agents_and_classpath() {
     [[ "$RESOURCE_CACHE_STATUS" == Enabled ]] &&
-        sappend "-javaagent:fr-resource-cache-agent.jar=gameRoot=.,installRoot=${RUNTIME_ROOT_PREFIX},cacheDir=${RUNTIME_ROOT_PREFIX}/fr-resource-cache,flushDelaySeconds=30,memoryCacheMiB=128,maxFileSize=1048576"
+        sappend "-javaagent:fr-resource-cache-agent.jar=gameRoot=.,installRoot=.,cacheDir=./fr-resource-cache,flushDelaySeconds=30,memoryCacheMiB=128,maxFileSize=1048576"
     [[ "$FAST_RENDERING_STATUS" == Enabled ]] &&
         sappend '-javaagent:fr.agent.jar'
-    if [[ "$PREPATCHER_STATUS" == Enabled ]]; then
-        # Quote the whole token so folder names containing spaces stay intact
-        # when the JVM parses the @argfile.
-        sappend "\"$PREPATCHER_AGENT\""
-    fi
     if [[ "$FAST_RENDERING_STATUS" == Enabled ]]; then
         sappend "-classpath fr.jar:$BASE_CLASSPATH"
     else
@@ -940,10 +818,11 @@ append_agents_and_classpath() {
 
 append_game_paths() {
     sappend \
-        "-Dcom.fs.starfarer.settings.paths.saves=${RUNTIME_ROOT_PREFIX}/saves" \
-        "-Dcom.fs.starfarer.settings.paths.screenshots=${RUNTIME_ROOT_PREFIX}/screenshots" \
-        "-Dcom.fs.starfarer.settings.paths.mods=${RUNTIME_ROOT_PREFIX}/mods" \
+        '-Dcom.fs.starfarer.settings.paths.saves=./saves' \
+        '-Dcom.fs.starfarer.settings.paths.screenshots=./screenshots' \
+        '-Dcom.fs.starfarer.settings.paths.mods=./mods' \
         '-Dcom.fs.starfarer.settings.paths.logs=.' \
+        '-Dcom.fs.starfarer.settings.linux=true' \
         'com.fs.starfarer.StarfarerLauncher'
     return 0
 }
@@ -951,7 +830,7 @@ append_game_paths() {
 append_modern_system_properties() {
     sappend \
         '-XX:ReservedCodeCacheSize=256m' \
-        "-Djava.library.path=${RUNTIME_MIKOHIME_PREFIX}/linux" \
+        '-Djava.library.path=mikohime/linux' \
         '-XX:-BytecodeVerificationLocal' \
         '-XX:-BytecodeVerificationRemote' \
         '-Dlog4j1.compatibility=true' \
@@ -963,9 +842,9 @@ append_modern_system_properties() {
         '-Dlog4j2.garbagefreeThreadContextMap=true' \
         '-Djava.util.Arrays.useLegacyMergeSort=true' \
         '-Dsun.java2d.renderer.useRef=weak' \
-        "-Dlog4j.configuration=${RUNTIME_MIKOHIME_PREFIX}/mikohime.properties" \
-        "-Djava.xml.config.file=${RUNTIME_MIKOHIME_PREFIX}/miko_jxp.properties" \
-        "-Dcom.fs.starfarer.launcher_bg=${RUNTIME_MIKOHIME_PREFIX}/launcher_bg.jpg" \
+        '-Dlog4j.configuration=mikohime/mikohime.properties' \
+        '-Djava.xml.config.file=mikohime/miko_jxp.properties' \
+        '-Dcom.fs.starfarer.launcher_bg=mikohime/launcher_bg.jpg' \
         '--add-opens=java.base/sun.nio.ch=ALL-UNNAMED' \
         '--add-opens=java.base/java.nio=ALL-UNNAMED' \
         '--add-opens=java.base/java.util=ALL-UNNAMED' \
@@ -987,10 +866,8 @@ write_simple_java27() {
     [[ -f "$DEFAULT_VM" ]] || { warn "Missing required Java 27 preset: mikohime/DefaultVM"; return 1; }
     tr -d '\r' < "$DEFAULT_VM" |
         strip_prefix_lines "${J27_STRIP_PREFIXES[@]}" > "$SIMPLE_PENDING" || return 1
-    if [[ "$CORE_LAYOUT" == "flat" ]]; then
-        sed 's#\.\./mikohime#mikohime#g' "$SIMPLE_PENDING" > "$SIMPLE_PENDING.tmp" || return 1
-        mv -f -- "$SIMPLE_PENDING.tmp" "$SIMPLE_PENDING" || return 1
-    fi
+    sed 's#\.\./mikohime#mikohime#g' "$SIMPLE_PENDING" > "$SIMPLE_PENDING.tmp" || return 1
+    mv -f -- "$SIMPLE_PENDING.tmp" "$SIMPLE_PENDING" || return 1
     sappend '-XX:+UseCriticalCompilerThreadPriority'
     sappend '-XX:ThreadPriorityPolicy=1'
     sappend '#-XX:MaxGCPauseMillis=100'
@@ -1096,15 +973,6 @@ write_info() {
         printf 'Fast Rendering     : %s\n' "$FAST_RENDERING_STATUS"
         [[ "$FAST_RENDERING_STATUS" == Enabled ]] &&
             printf 'FR Resource Cache  : %s\n' "$RESOURCE_CACHE_STATUS"
-        if [[ "$PREPATCHER_STATUS" == Enabled ]]; then
-            printf 'StarsectorPrepatcher: Enabled (%s)\n' "$PREPATCHER_FOLDER"
-        elif (( PREPATCHER_COUNT > 0 )); then
-            printf 'StarsectorPrepatcher: Disabled\n'
-        else
-            printf 'StarsectorPrepatcher: Not installed\n'
-        fi
-        (( INCOMPATIBLE_PREPATCHER_COUNT > 0 )) &&
-            printf 'Prepatcher notes    : %s incompatible or unreadable installation(s) ignored\n' "$INCOMPATIBLE_PREPATCHER_COUNT"
         if [[ "$VRAM_OPTIMIZER_AVAILABLE" == Yes ]]; then
             printf 'VRAM Optimizer     : Installed\n'
         else
@@ -1149,27 +1017,17 @@ write_logging() {
 }
 
 write_launcher() {
-    local java_command runtime_suffix argfile
+    local java_command
     if [[ "$SELECTED_JAVA" == "$GAME_ROOT/"* ]]; then
-        if [[ "$CORE_LAYOUT" == "nested" ]]; then
-            java_command="../${SELECTED_JAVA#"$GAME_ROOT/"}"
-        else
-            java_command="./${SELECTED_JAVA#"$GAME_ROOT/"}"
-        fi
+        java_command="./${SELECTED_JAVA#"$GAME_ROOT/"}"
     else
         java_command="$SELECTED_JAVA"
     fi
-    if [[ "$CORE_LAYOUT" == "nested" ]]; then
-        runtime_suffix="/starsector-core"
-    else
-        runtime_suffix=""
-    fi
-    argfile="$RUNTIME_ARGFILE"
     {
         printf '%s\n' '#!/usr/bin/env bash'
         printf '%s\n' 'set -euo pipefail'
-        printf 'cd -- "$(dirname -- "${BASH_SOURCE[0]}")%s"\n' "$runtime_suffix"
-        printf 'exec %q @%s "$@"\n' "$java_command" "$argfile"
+        printf '%s\n' 'cd -- "$(dirname -- "${BASH_SOURCE[0]}")"'
+        printf 'exec %q @Miko_Simple.txt "$@"\n' "$java_command"
     } > "$LAUNCHER_PENDING"
     chmod 755 "$LAUNCHER_PENDING" 2>/dev/null || true
     [[ -s "$LAUNCHER_PENDING" ]]
@@ -1206,7 +1064,7 @@ cleanup_pending_files() {
 }
 
 validate_agent_order() {
-    local cpline rc="" fr="" pp=""
+    local cpline rc="" fr=""
     cpline="$(grep -nE '^-classpath ' "$SIMPLE_PENDING" | head -n1 | cut -d: -f1)"
     [[ -n "$cpline" ]] || return 1
     if [[ "$RESOURCE_CACHE_STATUS" == Enabled ]]; then
@@ -1217,11 +1075,6 @@ validate_agent_order() {
         fr="$(grep -nFx -- '-javaagent:fr.agent.jar' "$SIMPLE_PENDING" | head -n1 | cut -d: -f1)"
         [[ -n "$fr" && "$fr" -lt "$cpline" ]] || return 1
         [[ -z "$rc" || "$rc" -lt "$fr" ]] || return 1
-    fi
-    if [[ "$PREPATCHER_STATUS" == Enabled ]]; then
-        pp="$(grep -nF -- 'StarsectorPrepatcherAgent.jar' "$SIMPLE_PENDING" | head -n1 | cut -d: -f1)"
-        [[ -n "$pp" && "$pp" -lt "$cpline" ]] || return 1
-        [[ -z "$fr" || "$fr" -lt "$pp" ]] || return 1
     fi
     return 0
 }
@@ -1235,7 +1088,7 @@ validate_pending_files() {
     grep -Eq '^-Xms[0-9]+m$' "$SIMPLE_PENDING" || return 1
     grep -Eq '^-Xmx[0-9]+m$' "$SIMPLE_PENDING" || return 1
     grep -Eq '^-classpath ' "$SIMPLE_PENDING" || return 1
-    grep -Fq -- "@${RUNTIME_ARGFILE}" "$LAUNCHER_PENDING" || return 1
+    grep -Fq -- '@Miko_Simple.txt' "$LAUNCHER_PENDING" || return 1
     grep -Fxq 'log4j.appender.file.MaxBackupIndex=3' "$LOGGING_PENDING" || return 1
 
     # The launcher class must be the final non-empty line.
@@ -1249,18 +1102,10 @@ validate_pending_files() {
     # FR Resource Cache cross-file invariant.
     if [[ "$RESOURCE_CACHE_STATUS" == Enabled ]]; then
         [[ "$FAST_RENDERING_STATUS" == Enabled ]] || return 1
-        [[ -s "$CORE_DIR/fr-resource-cache-agent.jar" ]] || return 1
+        [[ -s "$GAME_ROOT/fr-resource-cache-agent.jar" ]] || return 1
         grep -Fq -- '-javaagent:fr-resource-cache-agent.jar' "$SIMPLE_PENDING" || return 1
     else
         grep -Fq -- '-javaagent:fr-resource-cache-agent.jar' "$SIMPLE_PENDING" && return 1
-    fi
-
-    # Prepatcher cross-file invariant.
-    if [[ "$PREPATCHER_STATUS" == Enabled ]]; then
-        [[ -s "$MODS_DIR/$PREPATCHER_FOLDER/agent/StarsectorPrepatcherAgent.jar" ]] || return 1
-        grep -Fq -- 'StarsectorPrepatcherAgent.jar' "$SIMPLE_PENDING" || return 1
-    else
-        grep -Fq -- 'StarsectorPrepatcherAgent.jar' "$SIMPLE_PENDING" && return 1
     fi
 
     validate_agent_order || return 1
@@ -1355,9 +1200,6 @@ reset_selections() {
     HEAP_DESCRIPTION=""
     FAST_RENDERING_STATUS="Disabled"
     RESOURCE_CACHE_STATUS="Disabled"
-    PREPATCHER_STATUS="Disabled"
-    PREPATCHER_FOLDER=""
-    PREPATCHER_AGENT=""
     LOW_CORE_MODE="No"
     OLD_CPU_MODE="No"
     LARGE_PAGES_ENABLED="No"
@@ -1445,10 +1287,6 @@ resolve_memory_noninteractive() {
 resolve_components_noninteractive() {
     FAST_RENDERING_STATUS="Disabled"
     RESOURCE_CACHE_STATUS="Disabled"
-    PREPATCHER_STATUS="Disabled"
-    PREPATCHER_FOLDER=""
-    PREPATCHER_AGENT=""
-
     if [[ "$FAST_RENDERING_AVAILABLE" == Yes && "${MIKO_FAST_RENDERING:-1}" != 0 ]]; then
         FAST_RENDERING_STATUS="Enabled"
     fi
@@ -1456,16 +1294,6 @@ resolve_components_noninteractive() {
         RESOURCE_CACHE_STATUS="Enabled"
     fi
 
-    local sel="${MIKO_PREPATCHER:-0}"
-    if [[ "$sel" != 0 ]] && (( PREPATCHER_COUNT > 0 )); then
-        if [[ "$sel" =~ ^[0-9]+$ ]] && (( sel >= 1 && sel <= PREPATCHER_COUNT )); then
-            select_prepatcher_by_folder "${PREPATCHER_FOLDERS[$((sel - 1))]}"
-        elif [[ "$sel" == 1 ]]; then
-            select_prepatcher_by_folder "${PREPATCHER_FOLDERS[0]}"
-        else
-            warn "MIKO_PREPATCHER selection is out of range; StarsectorPrepatcher stays disabled."
-        fi
-    fi
 }
 
 resolve_cpu_noninteractive() {
@@ -1560,23 +1388,22 @@ print_detected_environment() {
     else
         printf '  Java 27 or 28      : %sNot found%s (select J below to install)\n' "${ColorYellow:-}" "${ColorReset:-}"
     fi
-    if [[ "$FAST_RENDERING_AVAILABLE" == Yes ]]; then
-        printf '  Fast Rendering     : %sInstalled%s\n' "${ColorGreen:-}" "${ColorReset:-}"
+    if [[ "$FAST_RENDERING_DETECTED" == Yes ]]; then
+        if [[ "$FAST_RENDERING_AVAILABLE" == Yes ]]; then
+            printf '  Fast Rendering     : %sInstalled%s\n' "${ColorGreen:-}" "${ColorReset:-}"
+        fi
     else
-        printf '  Fast Rendering     : %sNot found%s (%s)\n' "${ColorYellow:-}" "${ColorReset:-}" "$FastRenderingReleasesUrl"
+        printf '  Fast Rendering     : %sLinux fork not found%s (%s)\n' "${ColorYellow:-}" "${ColorReset:-}" "$FastRenderingReleasesUrl"
     fi
-    if [[ "$RESOURCE_CACHE_AVAILABLE" == Yes ]]; then
-        printf '  FR Resource Cache  : %sInstalled%s\n' "${ColorGreen:-}" "${ColorReset:-}"
+    if [[ "$RESOURCE_CACHE_DETECTED" == Yes ]]; then
+        if [[ "$RESOURCE_CACHE_AVAILABLE" == Yes ]]; then
+            printf '  FR Resource Cache  : %sInstalled%s\n' "${ColorGreen:-}" "${ColorReset:-}"
+        else
+            printf '  FR Resource Cache  : %sDetected but requires Fast Rendering%s\n' "${ColorYellow:-}" "${ColorReset:-}"
+        fi
     else
-        printf '  FR Resource Cache  : %sNot found%s (select R below)\n' "${ColorYellow:-}" "${ColorReset:-}"
+        printf '  FR Resource Cache  : %sUnavailable without Fast Rendering%s\n' "${ColorYellow:-}" "${ColorReset:-}"
     fi
-    if (( PREPATCHER_COUNT > 0 )); then
-        printf '  Prepatcher         : %sInstalled%s\n' "${ColorGreen:-}" "${ColorReset:-}"
-    else
-        printf '  Prepatcher         : %sNot found%s (%s)\n' "${ColorYellow:-}" "${ColorReset:-}" "$PrepatcherReleasesUrl"
-    fi
-    (( INCOMPATIBLE_PREPATCHER_COUNT > 0 )) &&
-        printf '    Compatibility    : %s older or unreadable installation(s) ignored\n' "$INCOMPATIBLE_PREPATCHER_COUNT"
     if [[ "$VRAM_OPTIMIZER_AVAILABLE" == Yes ]]; then
         printf '  VRAM Optimizer     : %sInstalled%s\n' "${ColorGreen:-}" "${ColorReset:-}"
     else
@@ -1598,8 +1425,6 @@ print_detected_environment() {
 
 missing_download_available() {
     [[ "$FAST_RENDERING_AVAILABLE" == No ]] && return 0
-    [[ "$RESOURCE_CACHE_AVAILABLE" == No ]] && return 0
-    (( PREPATCHER_COUNT == 0 )) && return 0
     [[ "$VRAM_OPTIMIZER_AVAILABLE" == No ]] && return 0
     return 1
 }
@@ -1607,9 +1432,7 @@ missing_download_available() {
 open_missing_download_page() {
     printf '\nOpen a download page:\n'
     local -a labels=() urls=()
-    [[ "$FAST_RENDERING_AVAILABLE" == No ]] && { labels+=("Fast Rendering"); urls+=("$FastRenderingReleasesUrl"); }
-    [[ "$RESOURCE_CACHE_AVAILABLE" == No ]] && { labels+=("FR Resource Cache"); urls+=("$ResourceCacheReleasesUrl"); }
-    (( PREPATCHER_COUNT == 0 )) && { labels+=("StarsectorPrepatcher"); urls+=("$PrepatcherReleasesUrl"); }
+    [[ "$FAST_RENDERING_AVAILABLE" == No ]] && { labels+=("Fast Rendering Linux fork"); urls+=("$FastRenderingReleasesUrl"); }
     [[ "$VRAM_OPTIMIZER_AVAILABLE" == No ]] && { labels+=("VRAM Optimizer"); urls+=("$VramOptimizerReleasesUrl"); }
     local i
     for i in "${!labels[@]}"; do
@@ -1628,6 +1451,70 @@ open_missing_download_page() {
     return 0
 }
 
+manual_java_download_menu() {
+    local requested="$1" prefix url expected folder
+    case "$requested" in
+        27) prefix=Jdk27 ;;
+        28) prefix=Jdk28 ;;
+        *) return 1 ;;
+    esac
+    url="$(read_property "${prefix}LinuxUrl" "$SHARED_DIR/java-versions.properties")"
+    expected="$(read_property "${prefix}LinuxSha256" "$SHARED_DIR/java-versions.properties")"
+    folder="$(read_property "${prefix}LinuxFolder" "$SHARED_DIR/java-versions.properties")"
+    printf '\nManual Java %s installation:\n' "$requested"
+    printf '  Download : %s\n' "$url"
+    printf '  SHA-256  : %s\n' "$expected"
+    printf '  Extract the JDK as: %s/%s\n' "$GAME_ROOT" "$folder"
+    printf '  Then return to the main menu and refresh detected components.\n'
+    printf '  O. Open the download URL\n  B. Return to the main menu\n'
+    prompt_line "Select an option: "
+    [[ "$REPLY_LINE" =~ ^[Oo]$ ]] && open_url "$url" || true
+    return 0
+}
+
+manual_resource_cache_menu() {
+    printf '\nManual FR Resource Cache installation:\n'
+    printf '  Download the latest release from: %s\n' "$ResourceCacheReleasesUrl"
+    printf '  Extract fr-resource-cache-agent.jar beside starsector.sh:\n'
+    printf '    %s/fr-resource-cache-agent.jar\n' "$GAME_ROOT"
+    printf '  Then return to the main menu and refresh detected components.\n'
+    printf '  O. Open the release page\n  B. Return to the main menu\n'
+    prompt_line "Select an option: "
+    [[ "$REPLY_LINE" =~ ^[Oo]$ ]] && open_url "$ResourceCacheReleasesUrl" || true
+    return 0
+}
+
+install_java_interactive() {
+    local requested="$1"
+    if (
+        LOCK_OWNED=0
+        OWNED_TEMP_FILES=()
+        OWNED_TEMP_DIRS=()
+        trap cleanup EXIT
+        install_java "$requested"
+    ); then
+        return 0
+    fi
+    warn "Automatic Java $requested installation failed."
+    manual_java_download_menu "$requested"
+    return 1
+}
+
+install_resource_cache_interactive() {
+    if (
+        LOCK_OWNED=0
+        OWNED_TEMP_FILES=()
+        OWNED_TEMP_DIRS=()
+        trap cleanup EXIT
+        install_resource_cache
+    ); then
+        return 0
+    fi
+    warn "Automatic FR Resource Cache installation failed."
+    manual_resource_cache_menu
+    return 1
+}
+
 install_java_menu() {
     printf '\nDownload and install Java (extracted beside starsector.sh; no system install)\n'
     printf '  1. Java 27 (%s)\n' "$(read_property Jdk27LinuxVersion "$SHARED_DIR/java-versions.properties")"
@@ -1635,8 +1522,8 @@ install_java_menu() {
     printf '  B. Back\n'
     prompt_line "Select an option: "
     case "$REPLY_LINE" in
-        1) install_java 27 || true ;;
-        2) install_java 28 || true ;;
+        1) install_java_interactive 27 || true ;;
+        2) install_java_interactive 28 || true ;;
         *) return 0 ;;
     esac
     refresh_environment
@@ -1699,63 +1586,25 @@ choose_custom_java() {
     JAVA_VERSION="$major"
     return 0
 }
-# --- Step 2: Prepatcher + Rendering -----------------------------------------
-resolve_prepatcher_selection() {
-    PREPATCHER_STATUS="Disabled"
-    PREPATCHER_FOLDER=""
-    PREPATCHER_AGENT=""
-    (( PREPATCHER_COUNT > 0 )) || return 0
-    while true; do
-        printf '\nStep 2 of 7 - StarsectorPrepatcher\n'
-        printf -- '--------------------------------------------------------------------------\n'
-        local i
-        for i in "${!PREPATCHER_FOLDERS[@]}"; do
-            printf '  %d. Enable %s (v%s)\n' "$((i + 1))" "${PREPATCHER_FOLDERS[$i]}" "${PREPATCHER_VERSIONS[$i]}"
-        done
-        printf '  D. Disable StarsectorPrepatcher\n'
-        printf '  B. Back\n'
-        printf '  X. Cancel and return to the main menu\n'
-        prompt_line "Select an option: "
-        case "$REPLY_LINE" in
-            [Xx]) return 2 ;;
-            [Bb]) return 1 ;;
-            [Dd]) PREPATCHER_STATUS="Disabled"; PREPATCHER_FOLDER=""; PREPATCHER_AGENT=""; return 0 ;;
-            *)
-                if [[ "$REPLY_LINE" =~ ^[0-9]+$ ]] && (( REPLY_LINE >= 1 && REPLY_LINE <= ${#PREPATCHER_FOLDERS[@]} )); then
-                    select_prepatcher_by_folder "${PREPATCHER_FOLDERS[$((REPLY_LINE - 1))]}"
-                    return 0
-                fi
-                warn "Invalid selection."
-                ;;
-        esac
-    done
-}
-
 choose_rendering() {
     while true; do
         printf '\nStep 2 of 7 - Optional components\n'
         printf -- '--------------------------------------------------------------------------\n'
-        if [[ "$PREPATCHER_STATUS" == Enabled ]]; then
-            printf 'StarsectorPrepatcher: %sEnabled (%s)%s\n' "${ColorGreen:-}" "$PREPATCHER_FOLDER" "${ColorReset:-}"
-        elif (( PREPATCHER_COUNT > 0 )); then
-            printf 'StarsectorPrepatcher: Disabled\n'
-        else
-            printf 'StarsectorPrepatcher: %sNot installed%s (%s)\n' "${ColorYellow:-}" "${ColorReset:-}" "$PrepatcherReleasesUrl"
-        fi
         if [[ "$FAST_RENDERING_AVAILABLE" != Yes ]]; then
             FAST_RENDERING_STATUS="Disabled"
             RESOURCE_CACHE_STATUS="Disabled"
-            printf '%sFast Rendering was not found and will remain disabled.%s (%s)\n' \
-                "${ColorYellow:-}" "${ColorReset:-}" "$FastRenderingReleasesUrl"
-            printf '  C. Continue\n  D. Open a download page\n  B. Back\n  X. Cancel\n'
+            printf '%sFast Rendering was not found.%s\n' \
+                "${ColorYellow:-}" "${ColorReset:-}"
+            printf 'Download and extract fr-linux.zip beside starsector.sh:\n  %s\n' "$FastRenderingReleasesUrl"
+            printf 'FR Resource Cache remains disabled until the Linux fork is installed.\n'
+            printf '  C. Continue\n  D. Open Linux fork download page\n  B. Back\n  X. Cancel\n'
             prompt_line "Select an option: "
             case "$REPLY_LINE" in
                 [Xx]) return 2 ;;
                 [Bb]) return 1 ;;
-                [Dd]) open_missing_download_page ;;
+                [Dd]) open_url "$FastRenderingReleasesUrl" || true ;;
                 *) return 0 ;;
             esac
-            continue
         fi
         printf 'Fast Rendering was detected. Enable it?\n'
         printf '  1. Yes\n  2. No\n  B. Back\n  X. Cancel\n'
@@ -1774,7 +1623,14 @@ choose_rendering() {
             printf '  C. Continue\n  R. Download and install FR Resource Cache\n  D. Open download page\n'
             prompt_line "Select an option: "
             case "$REPLY_LINE" in
-                [Rr]) install_resource_cache || true; refresh_environment; [[ "$RESOURCE_CACHE_AVAILABLE" == Yes ]] && continue ;;
+                [Rr])
+                    if install_resource_cache_interactive; then
+                        refresh_environment
+                        [[ "$RESOURCE_CACHE_AVAILABLE" == Yes ]] && continue
+                    else
+                        return 2
+                    fi
+                    ;;
                 [Dd]) open_url "$ResourceCacheReleasesUrl" || true ;;
             esac
             return 0
@@ -1986,15 +1842,11 @@ configure_interactive() {
                 choose_java; rc=$?
                 case "$rc" in 2) return 0 ;; 0) step=2 ;; esac
                 ;;
-            2)  # Prepatcher then rendering
-                if (( PREPATCHER_COUNT > 0 )); then
-                    resolve_prepatcher_selection; rc=$?
-                    case "$rc" in 2) return 0 ;; 1) step=1; continue ;; esac
-                fi
+            2)  # Optional rendering components
                 choose_rendering; rc=$?
                 case "$rc" in
                     2) return 0 ;;
-                    1) if (( PREPATCHER_COUNT > 0 )); then step=2; else step=1; fi ;;
+                    1) step=1 ;;
                     0) step=3 ;;
                 esac
                 ;;
@@ -2029,11 +1881,6 @@ review_and_commit() {
     printf 'Heap              : %s\n' "$HEAP_DESCRIPTION"
     printf 'Fast Rendering    : %s\n' "$FAST_RENDERING_STATUS"
     [[ "$FAST_RENDERING_STATUS" == Enabled ]] && printf 'FR Resource Cache : %s\n' "$RESOURCE_CACHE_STATUS"
-    if [[ "$PREPATCHER_STATUS" == Enabled ]]; then
-        printf 'Prepatcher        : Enabled (%s)\n' "$PREPATCHER_FOLDER"
-    else
-        printf 'Prepatcher        : Disabled\n'
-    fi
     printf 'Low-core tuning   : %s\n' "$LOW_CORE_MODE"
     printf 'Old-CPU AVX off   : %s\n' "$OLD_CPU_MODE"
     printf 'Large Pages       : %s\n' "$LARGE_PAGES_ENABLED"
@@ -2072,7 +1919,6 @@ main_menu() {
         printf '  3. Refresh detected components\n'
         printf '  4. Exit\n'
         [[ "$MODERN_JAVA_AVAILABLE" == No ]] && printf '  J. Download and install Java\n'
-        [[ "$RESOURCE_CACHE_AVAILABLE" == No ]] && printf '  R. Download and install FR Resource Cache\n'
         missing_download_available && printf '  D. Open a missing component download page\n'
         prompt_line "Select an option: "
         case "$REPLY_LINE" in
@@ -2081,7 +1927,6 @@ main_menu() {
             3) refresh_environment ;;
             4|'') return 0 ;;
             [Jj]) [[ "$MODERN_JAVA_AVAILABLE" == No ]] && install_java_menu ;;
-            [Rr]) [[ "$RESOURCE_CACHE_AVAILABLE" == No ]] && { install_resource_cache || true; refresh_environment; prompt_line "Press Enter to continue..."; } ;;
             [Dd]) missing_download_available && open_missing_download_page ;;
             *) warn "Invalid selection." ;;
         esac
