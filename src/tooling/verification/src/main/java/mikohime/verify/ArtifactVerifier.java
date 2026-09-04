@@ -236,7 +236,7 @@ public final class ArtifactVerifier {
             failures.add(new FailureDetail(
                 "distribution",
                 "expected-files",
-                "Windows Mikohime file set differs from the intended 15 jars, shared files, and native libraries.",
+                "Windows Mikohime file set differs from the intended 15 jars, configurator data, shared files, and native libraries.",
                 distribution.context(),
                 null
             ));
@@ -653,6 +653,10 @@ public final class ArtifactVerifier {
             .map(ArtifactSpec::fileName)
             .forEach(expected::add);
         Path distribution = projectRoot.resolve("../distribution").normalize();
+        collectFiles(
+            projectRoot.resolve("../configurator/shared").normalize(),
+            relative -> expected.add("configurator/shared/" + relative)
+        );
         collectFiles(distribution.resolve("shared/configuration"), expected::add);
         collectFiles(distribution.resolve("shared/resources"), expected::add);
         collectFiles(distribution.resolve("windows/configuration"), expected::add);
