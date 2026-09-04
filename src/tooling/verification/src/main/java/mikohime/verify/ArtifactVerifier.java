@@ -337,6 +337,7 @@ public final class ArtifactVerifier {
         );
         compareProbe("xstream-1.4.21_miko.jar", originalDir, rebuiltDir, ArtifactVerifier::xstreamProbe, outcomes, failures);
         verifyNativeLwjglProbe(rebuiltDir, outcomes.get("lwjgl.jar"), failures);
+        verifyLwjglClassLoaderPathGuard(rebuiltDir, outcomes.get("lwjgl.jar"), failures);
         verifyOpenCLCapabilityInitialization(rebuiltDir, outcomes.get("lwjgl.jar"), failures);
 
         Files.createDirectories(jsonReport.getParent());
@@ -905,6 +906,69 @@ public final class ArtifactVerifier {
             } else {
                 System.setProperty("org.lwjgl.librarypath", previousPath);
             }
+        }
+    }
+
+    private static void verifyLwjglClassLoaderPathGuard(
+        Path rebuiltDir,
+        ArtifactOutcome outcome,
+        List<FailureDetail> failures
+    ) {
+        ArtifactSpec artifact = REBUILT_BY_NAME.get("lwjgl.jar");
+        try {
+            String result = withArtifactLoader(rebuiltDir, artifact, loader -> {
+                Class<?> util = loader.loadClass("org.lwjgl.LWJGLUtil");
+                Method getLibraryPaths = util.getMethod(
+                    "getLibraryPaths",
+                    String.class,
+                    String.class,
+                    ClassLoader.class
+                );
+                class NativePathLoader extends ClassLoader {
+                    private final String path;
+
+                    NativePathLoader(String path) {
+                        this.path = path;
+                    }
+
+                    @Override
+                    protected String findLibrary(String libname) {
+                        return path;
+                    }
+                }
+                for (String path : List.of("", "lwjgl")) {
+                    String[] paths = (String[]) getLibraryPaths.invoke(
+                        null,
+                        "openal",
+                        System.mapLibraryName("openal"),
+                        new NativePathLoader(path)
+                    );
+                    if (Arrays.stream(paths).anyMatch(candidate -> candidate == null || candidate.isEmpty())) {
+                        throw new IllegalStateException("Empty native-library candidate generated for path: " + path);
+                    }
+                }
+                return "empty-and-filename-only-paths-ignored";
+            });
+            boolean matches = "empty-and-filename-only-paths-ignored".equals(result);
+            outcome.probe = outcome.probe == null ? matches : outcome.probe && matches;
+            if (!matches) {
+                failures.add(new FailureDetail(
+                    "lwjgl.jar",
+                    "classloader-native-path-guard",
+                    "LWJGL did not safely ignore unusable class-loader native paths.",
+                    List.of("actual=" + result),
+                    null
+                ));
+            }
+        } catch (Throwable error) {
+            outcome.probe = false;
+            failures.add(new FailureDetail(
+                "lwjgl.jar",
+                "classloader-native-path-guard",
+                "LWJGL failed on an empty or filename-only class-loader native path.",
+                List.of(rootMessage(error)),
+                stackTrace(error)
+            ));
         }
     }
 

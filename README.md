@@ -10,6 +10,7 @@ is approved by the original mod author.
 | Platform | Configurator | Generated launcher |
 | --- | --- | --- |
 | Windows x64 | `Configure_Me.cmd` | `Miko_Rouge.bat` |
+| Linux x64 (experimental) | `Configure_Me.sh` | `Miko_Rouge.sh` |
 
 Extract the package into the Starsector installation directory. Keep
 Starsector's bundled Java runtime; the configurator can also use a supported
@@ -23,7 +24,7 @@ local or system Java installation.
    `Program Files (x86)`, right-click it and select **Run as administrator**.
 3. Select a Java version and the desired memory, CPU, logging, rendering, cache, and
    Prepatcher options.
-4. Launch with `Miko_Rouge.bat`.If Starsector is under `Program Files` or
+4. Launch with `Miko_Rouge.bat`. If Starsector is under `Program Files` or
    `Program Files (x86)`, right-click it and select **Run as administrator**.
 
 If an automatic Java download fails, the configurator displays the trusted
@@ -37,7 +38,7 @@ Adoptium URL and can open it in your browser for manual installation.
 > distribution testing. Do not treat the Linux build as a supported release.
 
 1. Confirm `Configure_Me.sh` and `mikohime` are in the Starsector installation
-   directory beside `starsector.sh`. 
+   directory beside `starsector.sh`.
 2. Open a terminal in the Starsector installation directory and run
    `./Configure_Me.sh`.
 3. Launch the generated `Miko_Rouge.sh`.
@@ -45,8 +46,8 @@ Adoptium URL and can open it in your browser for manual installation.
 The Linux configurator offers a guided menu and a seven-step flow with
 back/cancel like the Windows configurator. It detects Java 17/27/28 installations, memory,
 CPU cores, and huge-page capability; selects a memory preset or custom heap;
-detects Fast Rendering, FR Resource Cache, StarsectorPrepatcher, and VRAM
-Optimizer; tunes low-core and old-CPU options; picks a logging mode and launcher
+detects Fast Rendering, FR Resource Cache, and VRAM Optimizer; tunes low-core
+and old-CPU options; picks a logging mode and launcher
 background; and writes Linux-native paths and `:`-separated classpaths. All
 outputs are validated and committed transactionally with rollback. It can
 install the pinned Adoptium builds with checksum validation:
@@ -64,6 +65,22 @@ Non-interactive runs are deterministic through `MIKO_*` environment variables
 ```bash
 MIKO_JAVA=jdk-28+13/bin/java MIKO_HEAP_MIB=8192 ./Configure_Me.sh --non-interactive
 ```
+
+Linux uses Starsector's native flat installation layout. Do not create a
+`starsector-core` directory. To use Fast Rendering, download the
+[Linux fork](https://github.com/jontyab/starsector-render/releases/tag/v0.8.7-port-78c1c903)
+and place both `fr.jar` and `fr.agent.jar` beside `starsector.sh`. The
+configurator detects any non-empty pair of these files and lets you choose
+whether to enable them; it does not enforce a specific version or checksum.
+Do not use the original Windows Fast Rendering package on Linux.
+
+FR Resource Cache requires Fast Rendering. Place
+`fr-resource-cache-agent.jar` beside `starsector.sh`; after Fast Rendering is
+enabled, the configurator offers a separate Resource Cache option. Its runtime
+data is written to `fr-resource-cache/` in the same directory.
+
+StarsectorPrepatcher is not compatible with native Linux and is not detected,
+offered, downloaded, or added to Linux launch configurations.
 
 Linux requires the normal Starsector desktop runtime libraries (X11, XRandR,
 XCursor, XF86VidMode, OpenAL, and ALSA). Mods that use OpenCL, such as BoxUtil,
