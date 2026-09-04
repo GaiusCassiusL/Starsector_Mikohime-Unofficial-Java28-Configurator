@@ -17,13 +17,14 @@ local or system Java installation.
 
 ### Windows
 
-1. Confirm `Configure_Me.cmd`, `mikohime`, and `starsector-core` are beside
+1. Confirm `Configure_Me.cmd` and `mikohime` folder are inside the same directory as
    `starsector.exe`.
 2. Run `Configure_Me.cmd`. If Starsector is under `Program Files` or
    `Program Files (x86)`, right-click it and select **Run as administrator**.
-3. Select Java and the desired memory, CPU, logging, rendering, cache, and
+3. Select a Java version and the desired memory, CPU, logging, rendering, cache, and
    Prepatcher options.
-4. Launch with `Miko_Rouge.bat`.
+4. Launch with `Miko_Rouge.bat`.If Starsector is under `Program Files` or
+   `Program Files (x86)`, right-click it and select **Run as administrator**.
 
 If an automatic Java download fails, the configurator displays the trusted
 Adoptium URL and can open it in your browser for manual installation.
@@ -31,19 +32,18 @@ Adoptium URL and can open it in your browser for manual installation.
 ### Experimental Linux support
 
 > [!WARNING]
-> Linux support is not release-ready. Its build and JNI initialization pass in
+> Linux support is still in development, don't be surprised if you encounter bugs or issues. Its build and JNI initialization pass in
 > CI, but it has not completed real Starsector launch, gameplay, mod, GPU, and
 > distribution testing. Do not treat the Linux build as a supported release.
 
 1. Confirm `Configure_Me.sh` and `mikohime` are in the Starsector installation
-   directory beside `starsector.sh`. The native Linux flat layout is supported;
-   a `starsector-core` directory is not required.
+   directory beside `starsector.sh`. 
 2. Open a terminal in the Starsector installation directory and run
    `./Configure_Me.sh`.
 3. Launch the generated `Miko_Rouge.sh`.
 
 The Linux configurator offers a guided menu and a seven-step flow with
-back/cancel. It detects local and system Java 17/27/28 installations, memory,
+back/cancel like the Windows configurator. It detects Java 17/27/28 installations, memory,
 CPU cores, and huge-page capability; selects a memory preset or custom heap;
 detects Fast Rendering, FR Resource Cache, StarsectorPrepatcher, and VRAM
 Optimizer; tunes low-core and old-CPU options; picks a logging mode and launcher
