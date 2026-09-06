@@ -74,16 +74,19 @@ public class LWJGLUtil {
    public static String[] getLibraryPaths(String libname, String[] platform_lib_names, ClassLoader classloader) {
       List<String> possible_paths = new ArrayList<>();
       String classloader_path = getPathFromClassLoader(libname, classloader);
-      if (classloader_path != null) {
+      if (classloader_path != null && !classloader_path.isEmpty()) {
          log("getPathFromClassLoader: Path found: " + classloader_path);
          possible_paths.add(classloader_path);
       }
 
       for (String platform_lib_name : platform_lib_names) {
          String lwjgl_classloader_path = getPathFromClassLoader("lwjgl", classloader);
-         if (lwjgl_classloader_path != null) {
+         if (lwjgl_classloader_path != null && !lwjgl_classloader_path.isEmpty()) {
             log("getPathFromClassLoader: Path found: " + lwjgl_classloader_path);
-            possible_paths.add(lwjgl_classloader_path.substring(0, lwjgl_classloader_path.lastIndexOf(File.separator)) + File.separator + platform_lib_name);
+            File lwjgl_parent = new File(lwjgl_classloader_path).getParentFile();
+            if (lwjgl_parent != null) {
+               possible_paths.add(new File(lwjgl_parent, platform_lib_name).getPath());
+            }
          }
 
          String alternative_path = getPrivilegedProperty("org.lwjgl.librarypath");

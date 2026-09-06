@@ -1,6 +1,6 @@
 # Changelog
 
-## [v0.7.5] - 2026-09-03
+## [v0.7.5] - 2026-09-04
 
 ### Added
 
@@ -11,10 +11,17 @@
   release packaging.
 - Added shared declarative Java, component, classpath, and memory configuration.
 - Added Linux configurator integration coverage for Java versions, optional
-  components, generated arguments, flat and nested layouts, locking, rollback,
+  components, generated arguments, the native flat layout, locking, rollback,
   paths containing spaces, and archive safety.
 - Added a Windows manual Java-download option and browser fallback when
   automatic installation fails.
+- Added support for the Fast Rendering Linux fork and its release page.
+- Added optional FR Resource Cache activation with the Linux Fast Rendering
+  fork.
+- Added manual Java and FR Resource Cache download guidance that returns to the
+  Linux configurator after an automatic installation failure.
+- Added regression verification for empty and filename-only LWJGL
+  class-loader native paths.
 
 ### Changed
 
@@ -29,6 +36,13 @@
 - Moved packaged configurator metadata under `mikohime/configurator/shared`.
 - Changed Linux release packaging to a mode-preserving `.tar.gz` archive.
 - Improved Windows write-access guidance for installations under Program Files.
+- Changed Linux Fast Rendering detection to accept any non-empty `fr.jar` and
+  `fr.agent.jar` pair beside `starsector.sh`, without version or checksum
+  pinning.
+- Added `-Dcom.fs.starfarer.settings.linux=true` to generated Linux launch
+  configurations.
+- Changed Linux FR Resource Cache installation and runtime paths to use the
+  directory containing `starsector.sh`.
 
 ### Fixed
 
@@ -37,10 +51,18 @@
 - Fixed Linux Java archives rejecting safe Adoptium symlinks.
 - Fixed Linux relative Java paths, source-tree invocation, and launcher working
   directory handling.
-- Fixed unsafe Prepatcher folder names corrupting Java argument-file parsing.
 - Fixed stale Java 28 Windows download checksum metadata.
 - Fixed Windows permission failures being incorrectly reported as stale
   configurator locks.
+- Fixed Linux configuration retaining legacy `starsector-core` paths; native
+  Linux now uses the flat game directory exclusively.
+- Fixed FR Resource Cache being treated as a nested folder instead of keeping
+  its agent JAR beside `starsector.sh` and its runtime data under
+  `fr-resource-cache/`.
+- Fixed failed interactive Java and FR Resource Cache installations terminating
+  the Linux configurator instead of returning to its menu.
+- Fixed LWJGL native-library path handling throwing
+  `Range [0, -1) out of bounds for length 0` for empty or filename-only paths.
 
 ### Compatibility
 
@@ -48,7 +70,20 @@
   than by Mikohime.
 - Linux packages target x86-64 and use native libraries compatible with the
   reconstructed LWJGL 2.9.5 and JInput JNI interfaces.
-- Windows game-launch behavior and native libraries remain unchanged.
+- Linux Fast Rendering support targets the
+  [jontyab Linux fork](https://github.com/jontyab/starsector-render/releases/tag/v0.8.7-port-78c1c903);
+  the original Windows release is not intended for native Linux.
+- FR Resource Cache is expected to work unchanged as a platform-neutral Java
+  agent, but still requires runtime gameplay testing on Linux.
+- Windows continues to use the original Fast Rendering release; its
+  game-launch behavior and native libraries remain unchanged.
+
+### Removed
+
+- Removed StarsectorPrepatcher detection, activation, download links, generated
+  Java-agent arguments, and status output from the Linux configurator because
+  StarsectorPrepatcher is not compatible with native Linux. Windows support is
+  unchanged.
 
 ## [v0.7.1] - 2026-09-02
 
