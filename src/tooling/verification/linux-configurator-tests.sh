@@ -133,6 +133,8 @@ for ver in 17 27 28; do
     assert_nothave "$simple" '-javaagent:fr.agent.jar' "Fast Rendering agent is absent"
     assert_nothave "$simple" '-javaagent:fr-resource-cache-agent.jar' "Resource Cache agent is absent"
     assert_nothave "$simple" 'StarsectorPrepatcherAgent.jar' "installed Prepatcher is ignored on Linux"
+    assert_havex "$simple" '-Xlog:async' "asynchronous JVM logging is enabled"
+    assert_nothave "$simple" 'NMethodRelocation' "NMethod relocation flag is absent"
     assert_have "$simple" '-Djava.library.path=mikohime/linux' "linux native path"
     assert_have "$simple" '-Dcom.fs.starfarer.settings.paths.saves=./saves' "linux saves path"
     assert_have "$simple" '-Dcom.fs.starfarer.settings.linux=true' "Linux runtime marker present"
@@ -148,6 +150,7 @@ for ver in 17 27 28; do
             ;;
         27)
             assert_havex "$simple" '-XX:+UseCriticalCompilerThreadPriority' "critical compiler priority on 27"
+            assert_nothave "$simple" '-XX:+AllowUnverifiedAgentClasses' "custom agent verification flag absent on standard 27"
             assert_havex "$simple" '#-XX:MaxGCPauseMillis=100' "commented pause target on 27"
             assert_nothave "$simple" '-XX:MaxGCPauseMillis=20' "original pause target stripped on 27"
             assert_havex "$simple" '-XX:+UseCMoveUnconditionally' "AVX2 hint on 27"
@@ -155,15 +158,34 @@ for ver in 17 27 28; do
             assert_havex "$simple" '-XX:+UseShenandoahGC' "DefaultVM body retained on 27"
             ;;
         28)
-            assert_havex "$simple" '-XX:-UseCompactObjectHeaders' "compact headers disabled on 28"
-            assert_havex "$simple" '-XX:-NMethodRelocation' "nmethod relocation disabled on 28"
-            assert_havex "$simple" '-XX:+DisableExplicitGC' "explicit GC disabled on 28"
+            assert_havex "$simple" '-XX:+UseCompactObjectHeaders' "compact headers enabled on 28"
+            assert_havex "$simple" '-XX:CompilerDirectivesFile=mikohime/.rouge_owo' "compiler directives enabled on 28"
+            assert_havex "$simple" '-XX:+UseCompressedOops' "compressed object pointers enabled on 28"
+            assert_havex "$simple" '-XX:+HotCodeHeap' "hot code heap enabled on 28"
+            assert_nothave "$simple" '-XX:+AllowUnverifiedAgentClasses' "custom agent verification flag absent on standard 28"
+            assert_havex "$simple" '#-XX:+DisableExplicitGC' "explicit GC disabling commented on 28"
+            if grep -Fxq -- '-XX:+DisableExplicitGC' "$simple"; then
+                bad "explicit GC disabling is not active on 28"
+            else
+                ok "explicit GC disabling is not active on 28"
+            fi
             assert_havex "$simple" '-XX:+AlwaysPreTouchStacks' "pretouch stacks on 28"
             assert_havex "$simple" '--enable-final-field-mutation=ALL-UNNAMED' "final field mutation on 28"
             assert_havex "$simple" '-XX:+ErrorLogSecondaryErrorDetails' "secondary error details on 28"
             assert_have "$simple" '-Djava.library.path=mikohime/linux' "linux native path on 28"
             ;;
     esac
+done
+
+# --- Custom Miko Java builds -------------------------------------------------
+section "Custom Miko Java builds"
+for spec in '27 jdk-27+22Miko' '28 jdk-28+13Miko'; do
+    read -r ver folder <<< "$spec"
+    root="$WORK/mikojava$ver"
+    make_root "$root"
+    make_java "$root/$folder/bin/java" "$ver-ea"
+    run_gen "$root" MIKO_JAVA="$root/$folder" MIKO_HEAP_MIB=4096
+    assert_havex "$root/Miko_Simple.txt" '-XX:+AllowUnverifiedAgentClasses' "custom agent verification flag enabled for $folder"
 done
 
 # --- Logging modes ----------------------------------------------------------
@@ -181,6 +203,8 @@ run_gen "$root" MIKO_JAVA="$root/fakejava/java28" MIKO_HEAP_MIB=4096 MIKO_LOGGIN
 assert_have "$props" 'log4j.rootLogger=INFO, file' "Minimal drops console appender"
 assert_have "$simple" '#-XX:+PrintCommandLineFlags' "Minimal comments JVM diagnostics"
 if grep -Eq '^-XX:\+PrintCommandLineFlags$' "$simple"; then bad "Minimal must not have uncommented PrintCommandLineFlags"; else ok "Minimal has no uncommented PrintCommandLineFlags"; fi
+assert_havex "$simple" '-Xlog:async' "Minimal keeps asynchronous JVM logging enabled"
+assert_nothave "$simple" '#-Xlog:async' "Minimal does not comment asynchronous JVM logging"
 
 # --- Fast Rendering presence semantics --------------------------------------
 section "Fast Rendering presence semantics"

@@ -1,16 +1,16 @@
 # Mikohime Unofficial Java 28 Configurator
 
 An unofficial, source-reconstructed Mikohime distribution and configurator for
-running Starsector with Java 17, Java 27, or Java 28 on Windows. Experimental
-64-bit Linux support is under development. Redistribution of the Mikohime files
-is approved by the original mod author.
+running Starsector with Java 17, Java 27, or Java 28 on 64-bit Windows and
+Linux. Redistribution of the Mikohime files is approved by the original mod
+author.
 
 ## Released platform
 
 | Platform | Configurator | Generated launcher |
 | --- | --- | --- |
 | Windows x64 | `Configure_Me.cmd` | `Miko_Rouge.bat` |
-| Linux x64 (experimental) | `Configure_Me.sh` | `Miko_Rouge.sh` |
+| Linux x64 | `Configure_Me.sh` | `Miko_Rouge.sh` |
 
 Extract the package into the Starsector installation directory. Keep
 Starsector's bundled Java runtime; the configurator can also use a supported
@@ -30,12 +30,7 @@ local or system Java installation.
 If an automatic Java download fails, the configurator displays the trusted
 Adoptium URL and can open it in your browser for manual installation.
 
-### Experimental Linux support
-
-> [!WARNING]
-> Linux support is still in development, don't be surprised if you encounter bugs or issues. Its build and JNI initialization pass in
-> CI, but it has not completed real Starsector launch, gameplay, mod, GPU, and
-> distribution testing. Do not treat the Linux build as a supported release.
+### Linux
 
 1. Confirm `Configure_Me.sh` and `mikohime` are in the Starsector installation
    directory beside `starsector.sh`.
