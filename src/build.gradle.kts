@@ -436,9 +436,9 @@ val assembleLinuxDistribution by tasks.registering(Sync::class) {
 
 val packageLinuxDistribution by tasks.registering(Tar::class) {
     group = "distribution"
-    description = "Packages the experimental Linux distribution with executable launchers."
+    description = "Packages the Linux distribution with executable launchers."
     dependsOn(assembleLinuxDistribution)
-    archiveFileName.set("Mikohime-linux-x64-experimental.tar.gz")
+    archiveFileName.set("Mikohime-linux-x64.tar.gz")
     destinationDirectory.set(layout.buildDirectory.dir("packages"))
     compression = Compression.GZIP
     from(distDir.map { it.dir("linux") })

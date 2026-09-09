@@ -791,7 +791,7 @@ append_jvm_diagnostic_logging() {
     sappend "${p}-XX:+ExtensiveErrorReports"
     [[ "$JAVA_VERSION" == 28 ]] && sappend "${p}-XX:+ErrorLogSecondaryErrorDetails"
     sappend "${p}-XX:+PrintCommandLineFlags"
-    sappend "${p}-Xlog:async"
+    sappend '-Xlog:async'
     sappend "${p}-Xlog:gc+init"
     return 0
 }
@@ -871,6 +871,9 @@ write_simple_java27() {
     sappend '-XX:+UseCriticalCompilerThreadPriority'
     sappend '-XX:ThreadPriorityPolicy=1'
     sappend '#-XX:MaxGCPauseMillis=100'
+    if [[ "$(basename -- "$(dirname -- "$(dirname -- "$SELECTED_JAVA")")")" == "jdk-27+22Miko" ]]; then
+        sappend '-XX:+AllowUnverifiedAgentClasses'
+    fi
     append_jvm_diagnostic_logging
     append_jvm_logger_options
     sappend '-Xss4m'
@@ -901,9 +904,14 @@ write_simple_modern() {
     sappend '-XX:+TieredCompilation'
     sappend '-XX:TieredStopAtLevel=4'
     if [[ "$JAVA_VERSION" == 28 ]]; then
-        sappend '-XX:-UseCompactObjectHeaders'
-        sappend '-XX:-NMethodRelocation'
-        sappend '-XX:+DisableExplicitGC'
+        sappend '-XX:+UseCompactObjectHeaders'
+        sappend '-XX:CompilerDirectivesFile=mikohime/.rouge_owo'
+        sappend '-XX:+UseCompressedOops'
+        sappend '-XX:+HotCodeHeap'
+        if [[ "$(basename -- "$(dirname -- "$(dirname -- "$SELECTED_JAVA")")")" == "jdk-28+13Miko" ]]; then
+            sappend '-XX:+AllowUnverifiedAgentClasses'
+        fi
+        sappend '#-XX:+DisableExplicitGC'
     fi
     sappend '-XX:+UseG1GC'
     sappend '#-XX:MaxGCPauseMillis=100'
@@ -939,8 +947,7 @@ write_info() {
         printf 'Java installation  : %s (Java %s)\n' "$SELECTED_JAVA" "$JAVA_VERSION"
         printf 'VM tuning          : %s\n' "$vm_line"
         if [[ "$JAVA_VERSION" == 28 ]]; then
-            printf 'Compact headers    : Disabled\n'
-            printf 'NMethod relocation : Disabled\n'
+            printf 'Compact headers    : Enabled\n'
         fi
         if [[ "$LOW_CORE_MODE" == "Yes" ]]; then
             printf 'CPU management     : Low-core tuning enabled\n'

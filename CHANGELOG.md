@@ -1,10 +1,27 @@
 # Changelog
 
-## [v0.7.5] - 2026-09-04
+## [v0.7.7] - 2026-09-09
+
+### Added
+
+- Added Java 28 compiler directives, compressed object pointers, and the
+  experimental hot-code heap to generated Windows and Linux configurations.
+- Added `AllowUnverifiedAgentClasses` for the custom `jdk-27+22Miko` and
+  `jdk-28+13Miko` runtimes.
+
+### Changed
+
+- Enabled compact object headers by default for Java 28.
+- Kept asynchronous JVM logging enabled in every logging mode.
+- Removed the unsupported `NMethodRelocation` JVM option.
+- Promoted the Linux package from experimental to stable.
+
+## [v0.7.6] - 2026-09-06
 
 ### Added
 
 - Added a 64-bit Linux configurator and generated `Miko_Rouge.sh` launcher.
+- Added Linux as a stable release platform.
 - Added checksum-verified Linux LWJGL, OpenAL, and JInput native packaging.
 - Added independent Windows and Linux Gradle distribution tasks.
 - Added Linux JNI initialization checks and cross-platform GitHub Actions
@@ -43,6 +60,9 @@
   configurations.
 - Changed Linux FR Resource Cache installation and runtime paths to use the
   directory containing `starsector.sh`.
+- Enabled compact object headers by default for Java 28 on Windows and Linux.
+- Kept `-Xlog:async` enabled for every logging mode.
+- Removed the `NMethodRelocation` JVM flag from generated configurations.
 
 ### Fixed
 

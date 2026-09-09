@@ -50,5 +50,5 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: Mikohime-linux-x64
-          path: src/build/packages/Mikohime-linux-x64-experimental.tar.gz
+          path: src/build/packages/Mikohime-linux-x64.tar.gz
           if-no-files-found: error

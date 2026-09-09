@@ -1349,8 +1349,7 @@ type nul >"!InfoOutputFile!"
 >>"!InfoOutputFile!" echo Java installation : !JavaPath! ^(Java !JavaVersion!^)
 if "!JavaVersion!"=="28" (
     >>"!InfoOutputFile!" echo VM tuning         : Java 28 safe G1 preset
-    >>"!InfoOutputFile!" echo Compact headers   : Disabled
-    >>"!InfoOutputFile!" echo NMethod relocation: Disabled
+    >>"!InfoOutputFile!" echo Compact headers   : Enabled
 ) else if "!JavaVersion!"=="17" (
     >>"!InfoOutputFile!" echo VM tuning         : Java 17 safe G1 preset
 ) else (
@@ -1400,6 +1399,7 @@ if errorlevel 1 exit /b 1
 >>"!SimpleOutputFile!" echo -XX:+UseCriticalCompilerThreadPriority
 >>"!SimpleOutputFile!" echo -XX:ThreadPriorityPolicy=1
 >>"!SimpleOutputFile!" echo #-XX:MaxGCPauseMillis=100
+if /I "!JavaPath!"=="jdk-27+22Miko" >>"!SimpleOutputFile!" echo -XX:+AllowUnverifiedAgentClasses
 call :AppendJvmDiagnosticLoggingOptions
 call :AppendJvmLoggerOptions
 >>"!SimpleOutputFile!" echo !ThreadStackSize!
@@ -1431,9 +1431,12 @@ exit /b 0
 type nul >"!SimpleOutputFile!"
 call :AppendModernDiagnostics
 if "!JavaVersion!"=="28" (
-    >>"!SimpleOutputFile!" echo -XX:-UseCompactObjectHeaders
-    >>"!SimpleOutputFile!" echo -XX:-NMethodRelocation
-    >>"!SimpleOutputFile!" echo -XX:+DisableExplicitGC
+    >>"!SimpleOutputFile!" echo -XX:+UseCompactObjectHeaders
+    >>"!SimpleOutputFile!" echo -XX:CompilerDirectivesFile=..\\mikohime/.rouge_owo
+    >>"!SimpleOutputFile!" echo -XX:+UseCompressedOops
+    >>"!SimpleOutputFile!" echo -XX:+HotCodeHeap
+    if /I "!JavaPath!"=="jdk-28+13Miko" >>"!SimpleOutputFile!" echo -XX:+AllowUnverifiedAgentClasses
+    >>"!SimpleOutputFile!" echo #-XX:+DisableExplicitGC
 )
 call :AppendModernGcOptions
 if "!JavaVersion!"=="28" >>"!SimpleOutputFile!" echo -XX:+AlwaysPreTouchStacks
@@ -1468,7 +1471,7 @@ if /I "!LoggingMode!"=="Minimal" set "JvmLoggingPrefix=#"
 >>"!SimpleOutputFile!" echo !JvmLoggingPrefix!-XX:+ExtensiveErrorReports
 if "!JavaVersion!"=="28" >>"!SimpleOutputFile!" echo !JvmLoggingPrefix!-XX:+ErrorLogSecondaryErrorDetails
 >>"!SimpleOutputFile!" echo !JvmLoggingPrefix!-XX:+PrintCommandLineFlags
->>"!SimpleOutputFile!" echo !JvmLoggingPrefix!-Xlog:async
+>>"!SimpleOutputFile!" echo -Xlog:async
 >>"!SimpleOutputFile!" echo !JvmLoggingPrefix!-Xlog:gc+init
 exit /b 0
 

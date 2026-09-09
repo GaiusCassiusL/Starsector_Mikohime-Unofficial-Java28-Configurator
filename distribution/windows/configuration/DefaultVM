@@ -79,7 +79,6 @@
 -XX:ThreadPriorityPolicy=1
 -XX:ReservedCodeCacheSize=256m
 -XX:-UseDynamicNumberOfCompilerThreads
--XX:+NMethodRelocation
 -Djava.library.path="..\\mikohime/windows"
 -XX:-BytecodeVerificationLocal
 -XX:-BytecodeVerificationRemote
