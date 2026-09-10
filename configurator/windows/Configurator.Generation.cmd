@@ -257,7 +257,7 @@ findstr /B /L /C:"-classpath" "!SimpleOutputFile!" >nul
 if errorlevel 1 exit /b 1
 findstr /L /C:"@..\Miko_Simple.txt" "!LauncherOutputFile!" >nul
 if errorlevel 1 exit /b 1
-findstr /X /L /C:"log4j.appender.file.MaxBackupIndex=3" "!LoggingOutputFile!" >nul
+findstr /L /C:"log4j.appender.file.MaxBackupIndex=3" "!LoggingOutputFile!" >nul
 if errorlevel 1 exit /b 1
 
 if /I "!ResourceCacheStatus!"=="Enabled" (

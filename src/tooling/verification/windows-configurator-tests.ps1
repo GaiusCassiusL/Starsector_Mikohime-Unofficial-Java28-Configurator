@@ -147,6 +147,11 @@ try {
         Where-Object { $_.Name -ne 'Configure_Me.cmd' } |
         Copy-Item -Destination (Join-Path $fixture 'mikohime\configurator\windows')
     Copy-Item -LiteralPath (Join-Path $repoRoot 'configurator\shared') -Destination (Join-Path $fixture 'mikohime\configurator') -Recurse
+    Get-ChildItem -LiteralPath (Join-Path $fixture 'mikohime\configurator\shared\logging') -File |
+        ForEach-Object {
+            $text = [IO.File]::ReadAllText($_.FullName) -replace "`r`n", "`n"
+            [IO.File]::WriteAllText($_.FullName, $text, [Text.UTF8Encoding]::new($false))
+        }
     Copy-Item -LiteralPath (Join-Path $repoRoot 'distribution\windows\configuration\DefaultPath') -Destination (Join-Path $fixture 'mikohime\DefaultPath')
     [IO.File]::WriteAllText((Join-Path $fixture 'mikohime\bg\gamma_bg.jpg'), 'GAMMA')
 
