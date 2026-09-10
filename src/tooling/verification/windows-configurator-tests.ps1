@@ -212,6 +212,7 @@ try {
     Assert-True (-not $invalidOutput.Contains('Press any key')) 'non-interactive installation failure does not pause'
 
     Write-Host "`nAll $passed Windows configurator checks passed."
+    $global:LASTEXITCODE = 0
 }
 finally {
     Remove-Item Env:MIKO_JAVA -ErrorAction SilentlyContinue
