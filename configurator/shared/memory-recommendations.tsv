@@ -1,0 +1,5 @@
+# minimum-system-mib|heap-mib|description
+0|4096|4 GB - recommended for this system
+8000|6144|6 GB - recommended for this system
+14000|8192|8 GB - recommended for this system
+29000|16384|16 GB - recommended for this system

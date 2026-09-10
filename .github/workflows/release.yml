@@ -21,14 +21,14 @@ jobs:
           cache: gradle
       - name: Build and verify Windows distribution
         working-directory: src
-        run: .\gradlew.bat clean verify assembleWindowsDistribution --no-daemon --console=plain
-      - name: Package Windows distribution
+        run: .\gradlew.bat clean verify packageWindowsDistribution --no-daemon --console=plain
+      - name: Test Windows configurator
         shell: pwsh
-        run: Compress-Archive -Path src\build\dist\windows\* -DestinationPath Mikohime-windows-x64.zip
+        run: .\src\tooling\verification\windows-configurator-tests.ps1
       - uses: actions/upload-artifact@v4
         with:
           name: Mikohime-windows-x64
-          path: Mikohime-windows-x64.zip
+          path: src/build/packages/Mikohime-windows-x64-v*.zip
           if-no-files-found: error
 
   linux:
@@ -50,5 +50,5 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: Mikohime-linux-x64
-          path: src/build/packages/Mikohime-linux-x64.tar.gz
+          path: src/build/packages/Mikohime-linux-x64-v*.tar.gz
           if-no-files-found: error

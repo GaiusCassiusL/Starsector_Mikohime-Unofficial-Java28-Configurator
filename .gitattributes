@@ -3,4 +3,6 @@
 *.cmd text eol=crlf
 *.properties text eol=lf
 *.tsv text eol=lf
-distribution/linux/configuration/DefaultVM text eol=lf
+configurator/shared/jvm/*.args text eol=lf
+configurator/shared/*.tsv text eol=lf
+configurator/windows/Configurator.Helpers.ps1 text eol=crlf

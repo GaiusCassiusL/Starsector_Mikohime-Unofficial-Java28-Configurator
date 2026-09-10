@@ -1,5 +1,36 @@
 # Changelog
 
+## [v0.8.0] - 2026-09-10
+
+### Added
+
+- Added Recommended, Basic, and Advanced Windows configuration workflows.
+- Added shared Java argument profiles, logging templates, and memory
+  recommendation data used by both configurators.
+- Added Windows component version detection and on-demand update checks for
+  Fast Rendering, FR Resource Cache, Prepatcher, and VRAM Optimizer.
+- Added deterministic Windows non-interactive generation and regression tests.
+- Added transactional launcher-background updates and versioned Windows and
+  Linux package tasks.
+
+### Changed
+
+- Split the Windows configurator into focused UI, environment, generation, and
+  PowerShell helper modules.
+- Simplified menu wording, navigation, recommendations, status displays, and
+  component download management.
+- Unified generated JVM argument validation and shared profile rendering.
+- Removed obsolete platform-specific `DefaultVM` files.
+- Split platform distribution logic into focused Gradle scripts.
+
+### Fixed
+
+- Fixed browser launches incorrectly reporting that download pages failed to
+  open.
+- Fixed Java 28 logging and compiler-directive defaults in every workflow.
+- Fixed component label alignment and standardized direct main-menu actions on
+  the `X` key.
+
 ## [v0.7.7] - 2026-09-09
 
 ### Added

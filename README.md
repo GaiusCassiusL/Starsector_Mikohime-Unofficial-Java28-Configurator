@@ -30,6 +30,19 @@ local or system Java installation.
 If an automatic Java download fails, the configurator displays the trusted
 Adoptium URL and can open it in your browser for manual installation.
 
+Windows automation and regression tests can generate a configuration without
+menu input by setting `MIKO_JAVA` to a Java folder beside `starsector.exe` and
+running:
+
+```bat
+Configure_Me.cmd --non-interactive
+```
+
+`MIKO_JAVA_VERSION` can explicitly provide the Java major for isolated
+automation fixtures. `MIKO_HEAP_MIB`, `MIKO_FAST_RENDERING`, `MIKO_RESOURCE_CACHE`,
+`MIKO_PREPATCHER`, `MIKO_LOW_CORE`, `MIKO_OLD_CPU`, `MIKO_LARGE_PAGES`,
+`MIKO_LOGGING`, and `MIKO_BACKGROUND` override the corresponding defaults.
+
 ### Linux
 
 1. Confirm `Configure_Me.sh` and `mikohime` are in the Starsector installation
@@ -99,6 +112,9 @@ src/build/dist/windows/
 src/build/dist/linux/
 ```
 
+Versioned release archives are generated under `src/build/packages/` by
+`packageWindowsDistribution` and `packageLinuxDistribution`.
+
 The Gradle build reconstructs 15 JARs, verifies the Windows-equivalent output,
 and assembles platform-specific native libraries. Linux natives are
 checksum-verified Maven artifacts:
@@ -118,7 +134,7 @@ that Starsector or third-party mods work correctly on Linux.
 ```text
 configurator/
   shared/       Declarative classpath, memory, component, and Java data
-  windows/      CMD configurator
+  windows/      CMD entry point/modules and focused PowerShell helper
   linux/        Bash configurator
 distribution/
   shared/       Shared Mikohime configuration and resources
