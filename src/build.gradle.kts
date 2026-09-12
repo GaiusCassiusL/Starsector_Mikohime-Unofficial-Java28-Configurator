@@ -4,8 +4,8 @@ import java.util.jar.JarOutputStream
 import java.util.zip.ZipEntry
 import org.gradle.api.GradleException
 import org.gradle.language.jvm.tasks.ProcessResources
-import org.gradle.api.tasks.bundling.Compression
-import org.gradle.api.tasks.bundling.Tar
+
+version = "0.8.0"
 
 // ---------------------------------------------------------------------------
 // Mikohime Source Code Test - reproducible multi-module rebuild
@@ -119,13 +119,8 @@ fun normalizedTimestamp(epochMillis: Long?, candidateMillis: Long): Long {
 val sourceDateEpochInstant = readSourceDateEpoch()
 val sourceDateEpochMillis = sourceDateEpochInstant?.toEpochMilli()
 val repositoryRoot = layout.projectDirectory.dir("..")
-val distDir = layout.buildDirectory.dir("dist")
 val officialStageDir = layout.buildDirectory.dir("staging/official")
 val rebuiltStageDir = layout.buildDirectory.dir("staging/rebuilt")
-val linuxNativeStageDir = layout.buildDirectory.dir("staging/linux-native")
-val stagedLinuxConfigurator = layout.buildDirectory.file("staging/linux-configurator/Configure_Me.sh")
-val stagedLinuxClasspath = layout.buildDirectory.file("staging/linux-configurator/classpath.entries")
-val stagedLinuxDefaultVm = layout.buildDirectory.file("staging/linux-configurator/DefaultVM")
 
 allprojects {
     dependencyLocking {
@@ -165,23 +160,6 @@ repositories {
 
 dependencies {
     officialArtifacts.forEach { officialConfiguration(it.coordinate) }
-}
-
-val linuxLwjglNatives: Configuration by configurations.creating {
-    isCanBeConsumed = false
-    isCanBeResolved = true
-    isTransitive = false
-}
-
-val linuxJinputNatives: Configuration by configurations.creating {
-    isCanBeConsumed = false
-    isCanBeResolved = true
-    isTransitive = false
-}
-
-dependencies {
-    linuxLwjglNatives("org.jmonkeyengine:lwjgl-platform:2.9.5:natives-linux")
-    linuxJinputNatives("net.java.jinput:jinput:2.0.10:natives-all")
 }
 
 val resolveOfficialJars by tasks.registering(Copy::class) {
@@ -326,136 +304,13 @@ val writeArtifactReport by tasks.registering {
     }
 }
 
-val extractLinuxNatives by tasks.registering(Sync::class) {
-    group = "mikohime"
-    description = "Extracts the verified 64-bit Linux LWJGL, OpenAL, and JInput JNI libraries."
-    from({ linuxLwjglNatives.map(::zipTree) }) {
-        include("liblwjgl64.so", "libopenal64.so")
-    }
-    from({ linuxJinputNatives.map(::zipTree) }) {
-        include("libjinput-linux64.so")
-    }
-    into(linuxNativeStageDir)
-    doLast {
-        val expected = setOf("liblwjgl64.so", "libopenal64.so", "libjinput-linux64.so")
-        val actual = linuxNativeStageDir.get().asFile.listFiles()
-            ?.filter(File::isFile)
-            ?.map(File::getName)
-            ?.toSet()
-            .orEmpty()
-        if (actual != expected) {
-            throw GradleException("Linux native set mismatch. Expected $expected, found $actual")
-        }
-    }
-}
-
-val prepareLinuxConfigurator by tasks.registering {
-    group = "mikohime"
-    description = "Stages Linux runtime files with Unix LF line endings."
-    val scriptSource = repositoryRoot.file("configurator/linux/Configure_Me.sh")
-    val classpathSource = repositoryRoot.file("configurator/shared/classpath.entries")
-    val defaultVmSource = repositoryRoot.file("distribution/linux/configuration/DefaultVM")
-    inputs.files(scriptSource, classpathSource, defaultVmSource)
-    outputs.files(stagedLinuxConfigurator, stagedLinuxClasspath, stagedLinuxDefaultVm)
-    doLast {
-        listOf(
-            scriptSource.asFile to stagedLinuxConfigurator.get().asFile,
-            classpathSource.asFile to stagedLinuxClasspath.get().asFile,
-            defaultVmSource.asFile to stagedLinuxDefaultVm.get().asFile,
-        ).forEach { (source, output) ->
-            output.parentFile.mkdirs()
-            val normalized = source.readText(Charsets.UTF_8)
-                .replace("\r\n", "\n")
-                .replace('\r', '\n')
-            output.writeText(normalized, Charsets.UTF_8)
-        }
-    }
-}
-
-val assembleWindowsDistribution by tasks.registering(Sync::class) {
-    group = "mikohime"
-    description = "Builds the complete Windows release directory."
-    dependsOn(resolveOfficialJars, copyRebuiltJars, writeArtifactReport)
-    duplicatesStrategy = DuplicatesStrategy.FAIL
-    into(distDir.map { it.dir("windows") })
-    from(repositoryRoot.file("configurator/windows/Configure_Me.cmd"))
-    from(repositoryRoot.files("README.md", "CHANGELOG.md"))
-    into("mikohime") {
-        from(officialStageDir)
-        from(rebuiltStageDir)
-        from(repositoryRoot.dir("distribution/shared/configuration"))
-        from(repositoryRoot.dir("distribution/shared/resources"))
-        from(repositoryRoot.dir("distribution/windows/configuration"))
-        into("configurator/shared") {
-            from(repositoryRoot.dir("configurator/shared"))
-        }
-        into("windows") {
-            from(repositoryRoot.dir("distribution/windows/native"))
-        }
-    }
-    doLast {
-        println("Windows distribution assembled at: ${distDir.get().dir("windows").asFile.absolutePath}")
-    }
-}
-
-val assembleLinuxDistribution by tasks.registering(Sync::class) {
-    group = "mikohime"
-    description = "Builds the complete 64-bit Linux release directory."
-    dependsOn(resolveOfficialJars, copyRebuiltJars, writeArtifactReport, extractLinuxNatives, prepareLinuxConfigurator)
-    duplicatesStrategy = DuplicatesStrategy.FAIL
-    into(distDir.map { it.dir("linux") })
-    from(stagedLinuxConfigurator) {
-        filePermissions {
-            unix("rwxr-xr-x")
-        }
-    }
-    from(repositoryRoot.files("README.md", "CHANGELOG.md"))
-    into("mikohime") {
-        from(officialStageDir)
-        from(rebuiltStageDir)
-        from(repositoryRoot.dir("distribution/shared/configuration"))
-        from(repositoryRoot.dir("distribution/shared/resources"))
-        from(repositoryRoot.dir("distribution/linux/configuration")) {
-            exclude("DefaultVM")
-        }
-        from(stagedLinuxDefaultVm)
-        into("configurator/shared") {
-            from(repositoryRoot.dir("configurator/shared")) {
-                exclude("classpath.entries")
-            }
-            from(stagedLinuxClasspath)
-        }
-        into("linux") {
-            from(linuxNativeStageDir)
-        }
-    }
-    doLast {
-        println("Linux distribution assembled at: ${distDir.get().dir("linux").asFile.absolutePath}")
-    }
-}
-
-val packageLinuxDistribution by tasks.registering(Tar::class) {
-    group = "distribution"
-    description = "Packages the Linux distribution with executable launchers."
-    dependsOn(assembleLinuxDistribution)
-    archiveFileName.set("Mikohime-linux-x64.tar.gz")
-    destinationDirectory.set(layout.buildDirectory.dir("packages"))
-    compression = Compression.GZIP
-    from(distDir.map { it.dir("linux") })
-    eachFile {
-        mode = if (name == "Configure_Me.sh") {
-            0b111101101
-        } else {
-            0b110100100
-        }
-    }
-    dirMode = 0b111101101
-}
+apply(from = "gradle/distribution-windows.gradle.kts")
+apply(from = "gradle/distribution-linux.gradle.kts")
 
 val assembleDistribution by tasks.registering {
     group = "mikohime"
     description = "Builds both Windows and Linux release directories."
-    dependsOn(assembleWindowsDistribution, assembleLinuxDistribution)
+    dependsOn("assembleWindowsDistribution", "assembleLinuxDistribution")
 }
 
 tasks.register("verify") {

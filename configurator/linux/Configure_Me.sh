@@ -24,7 +24,6 @@ fi
 MIKOHIME_DIR="$GAME_ROOT/mikohime"
 MODS_DIR="$GAME_ROOT/mods"
 BG_DIR="$MIKOHIME_DIR/bg"
-DEFAULT_VM="$MIKOHIME_DIR/DefaultVM"
 LOCK_DIR="$GAME_ROOT/.configure_me.lock"
 
 # Native Linux Starsector installations use one flat game directory. All game
@@ -81,8 +80,19 @@ load_shared_metadata() {
         die "Missing shared configurator data: java-versions.properties"
     [[ -f "$SHARED_DIR/memory-presets.tsv" ]] ||
         die "Missing shared configurator data: memory-presets.tsv"
+    [[ -f "$SHARED_DIR/memory-recommendations.tsv" ]] ||
+        die "Missing shared configurator data: memory-recommendations.tsv"
     [[ -f "$SHARED_DIR/classpath.entries" ]] ||
         die "Missing shared configurator data: classpath.entries"
+    local version
+    for version in 17 27 28; do
+        [[ -f "$SHARED_DIR/jvm/java-$version.args" ]] ||
+            die "Missing shared JVM profile: jvm/java-$version.args"
+    done
+    for version in full reduced minimal; do
+        [[ -f "$SHARED_DIR/logging/$version.properties" ]] ||
+            die "Missing shared logging profile: logging/$version.properties"
+    done
 
     FastRenderingReleasesUrl="$(read_property FastRenderingLinuxReleasesUrl "$SHARED_DIR/components.properties")"
     ResourceCacheReleasesUrl="$(read_property ResourceCacheReleasesUrl "$SHARED_DIR/components.properties")"
@@ -263,8 +273,6 @@ validate_installation() {
     [[ -f "$GAME_ROOT/fs.common_obf.jar" ]] ||
         die "This Linux installation is missing fs.common_obf.jar beside starsector.sh."
     [[ -d "$MIKOHIME_DIR" ]] || die "Required directory mikohime was not found."
-    [[ -f "$DEFAULT_VM" ]] || die "The Linux Mikohime DefaultVM preset is missing: $DEFAULT_VM"
-
     local native
     for native in liblwjgl64.so libopenal64.so libjinput-linux64.so; do
         [[ -f "$MIKOHIME_DIR/linux/$native" ]] ||
@@ -272,7 +280,7 @@ validate_installation() {
     done
 
     local bg
-    for bg in default_bg.jpg pather_bg.jpg mimikko_bg.jpg gamma_bg.jpg; do
+    for bg in default_bg.jpg pather_bg.jpg mimikko_bg.jpg gamma_bg.jpg toadsector.jpg; do
         [[ -f "$BG_DIR/$bg" ]] ||
             die "A launcher background asset is missing: mikohime/bg/$bg"
     done
@@ -715,31 +723,6 @@ BG_PENDING=""
 declare -a COMMIT_TARGETS=()
 declare -a COMMIT_PENDINGS=()
 
-# Lines of the Linux DefaultVM whose Java 27 output is regenerated below and so
-# are stripped (matched at the start of the line) before being re-emitted.
-J27_STRIP_PREFIXES=(
-    '-XX:+UseCriticalCompilerThreadPriority'
-    '-XX:ThreadPriorityPolicy=1'
-    '-XX:MaxGCPauseMillis='
-    '#-XX:MaxGCPauseMillis='
-    '-XX:+ShowCodeDetailsInExceptionMessages'
-    '#-XX:+ShowCodeDetailsInExceptionMessages'
-    '-XX:+ExtensiveErrorReports'
-    '#-XX:+ExtensiveErrorReports'
-    '-XX:+ErrorLogSecondaryErrorDetails'
-    '#-XX:+ErrorLogSecondaryErrorDetails'
-    '-XX:+PrintCommandLineFlags'
-    '#-XX:+PrintCommandLineFlags'
-    '-Xlog:async'
-    '#-Xlog:async'
-    '-Xlog:gc+init'
-    '#-Xlog:gc+init'
-    '-DAsyncLogger.WaitStrategy=busyspin'
-    '#-DAsyncLogger.WaitStrategy=busyspin'
-    '-Dsun.java2d.renderer.useLogger=true'
-    '#-Dsun.java2d.renderer.useLogger=true'
-)
-
 # Whole lines removed for old-CPU (pre-AVX2) compatibility.
 OLDCPU_STRIP_LINES=(
     '-XX:UseAVX=3'
@@ -754,23 +737,6 @@ sappend() { printf '%s\n' "$@" >> "$SIMPLE_PENDING"; }
 
 logging_prefix() {
     [[ "$LOGGING_MODE" == "Minimal" ]] && printf '#' || true
-}
-
-strip_prefix_lines() {
-    # stdin -> stdout, dropping lines starting with any argument prefix.
-    local plist; plist="$(printf '%s\n' "$@")"
-    awk -v plist="$plist" '
-        BEGIN { n = split(plist, arr, "\n") }
-        {
-            keep = 1
-            for (i = 1; i <= n; i++) {
-                p = arr[i]
-                if (p == "") continue
-                if (substr($0, 1, length(p)) == p) { keep = 0; break }
-            }
-            if (keep) print
-        }
-    '
 }
 
 strip_exact_lines() {
@@ -791,14 +757,17 @@ append_jvm_diagnostic_logging() {
     sappend "${p}-XX:+ExtensiveErrorReports"
     [[ "$JAVA_VERSION" == 28 ]] && sappend "${p}-XX:+ErrorLogSecondaryErrorDetails"
     sappend "${p}-XX:+PrintCommandLineFlags"
-    sappend '-Xlog:async'
+    [[ "$JAVA_VERSION" != 28 ]] && sappend '-Xlog:async'
     sappend "${p}-Xlog:gc+init"
     return 0
 }
 
 append_jvm_logger_options() {
-    local p; p="$(logging_prefix)"
-    sappend "${p}-DAsyncLogger.WaitStrategy=busyspin"
+    local p busy_spin_prefix
+    p="$(logging_prefix)"
+    busy_spin_prefix="$p"
+    [[ "$JAVA_VERSION" == 28 ]] && busy_spin_prefix='#'
+    sappend "${busy_spin_prefix}-DAsyncLogger.WaitStrategy=busyspin"
     sappend "${p}-Dsun.java2d.renderer.useLogger=true"
     return 0
 }
@@ -827,55 +796,34 @@ append_game_paths() {
     return 0
 }
 
-append_modern_system_properties() {
+append_platform_system_properties() {
     sappend \
-        '-XX:ReservedCodeCacheSize=256m' \
         '-Djava.library.path=mikohime/linux' \
-        '-XX:-BytecodeVerificationLocal' \
-        '-XX:-BytecodeVerificationRemote' \
-        '-Dlog4j1.compatibility=true' \
-        '-DLog4jContextSelector=org.apache.logging.log4j.core.async.AsyncLoggerContextSelector'
-    append_jvm_logger_options
-    sappend \
-        '-Dlog4j2.enableThreadlocals=true' \
-        '-Dlog4j2.enableDirectEncoders=true' \
-        '-Dlog4j2.garbagefreeThreadContextMap=true' \
-        '-Djava.util.Arrays.useLegacyMergeSort=true' \
-        '-Dsun.java2d.renderer.useRef=weak' \
         '-Dlog4j.configuration=mikohime/mikohime.properties' \
         '-Djava.xml.config.file=mikohime/miko_jxp.properties' \
-        '-Dcom.fs.starfarer.launcher_bg=mikohime/launcher_bg.jpg' \
-        '--add-opens=java.base/sun.nio.ch=ALL-UNNAMED' \
-        '--add-opens=java.base/java.nio=ALL-UNNAMED' \
-        '--add-opens=java.base/java.util=ALL-UNNAMED' \
-        '--add-opens=java.base/java.util.concurrent=ALL-UNNAMED' \
-        '--add-opens=java.base/java.util.concurrent.locks=ALL-UNNAMED' \
-        '--add-opens=java.base/jdk.internal.ref=ALL-UNNAMED' \
-        '--add-opens=java.base/java.lang.reflect=ALL-UNNAMED' \
-        '--add-opens=java.base/java.lang.ref=ALL-UNNAMED' \
-        '--add-opens=java.base/java.lang=ALL-UNNAMED' \
-        '--add-opens=java.management/javax.management=ALL-UNNAMED' \
-        '--add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED' \
-        '--add-opens=java.base/java.text=ALL-UNNAMED' \
-        '--add-opens=java.desktop/java.awt.font=ALL-UNNAMED' \
-        '--add-opens=java.desktop/java.awt=ALL-UNNAMED' \
-        '--enable-native-access=ALL-UNNAMED'
+        '-Dcom.fs.starfarer.launcher_bg=mikohime/launcher_bg.jpg'
     return 0
 }
+
+load_jvm_profile() {
+    local profile="$SHARED_DIR/jvm/java-$1.args"
+    [[ -s "$profile" ]] || { warn "Missing or empty JVM profile: $profile"; return 1; }
+    tr -d '\r' < "$profile" |
+        sed 's#@MIKOHIME_COMPILER_DIRECTIVES@#mikohime/.rouge_owo#g' > "$SIMPLE_PENDING"
+}
+
 write_simple_java27() {
-    [[ -f "$DEFAULT_VM" ]] || { warn "Missing required Java 27 preset: mikohime/DefaultVM"; return 1; }
-    tr -d '\r' < "$DEFAULT_VM" |
-        strip_prefix_lines "${J27_STRIP_PREFIXES[@]}" > "$SIMPLE_PENDING" || return 1
-    sed 's#\.\./mikohime#mikohime#g' "$SIMPLE_PENDING" > "$SIMPLE_PENDING.tmp" || return 1
-    mv -f -- "$SIMPLE_PENDING.tmp" "$SIMPLE_PENDING" || return 1
+    load_jvm_profile 27 || return 1
     sappend '-XX:+UseCriticalCompilerThreadPriority'
     sappend '-XX:ThreadPriorityPolicy=1'
     sappend '#-XX:MaxGCPauseMillis=100'
+    sappend '-XX:CompilerDirectivesFile=mikohime/.rouge_owo'
     if [[ "$(basename -- "$(dirname -- "$(dirname -- "$SELECTED_JAVA")")")" == "jdk-27+22Miko" ]]; then
         sappend '-XX:+AllowUnverifiedAgentClasses'
     fi
     append_jvm_diagnostic_logging
     append_jvm_logger_options
+    append_platform_system_properties
     sappend '-Xss4m'
     sappend "-Xms${HEAP_MIB}m"
     sappend "-Xmx${HEAP_MIB}m"
@@ -897,35 +845,21 @@ write_simple_java27() {
 }
 
 write_simple_modern() {
-    : > "$SIMPLE_PENDING" || return 1
-    sappend '-XX:+UnlockDiagnosticVMOptions'
-    sappend '-XX:+UnlockExperimentalVMOptions'
+    load_jvm_profile "$JAVA_VERSION" || return 1
     append_jvm_diagnostic_logging
-    sappend '-XX:+TieredCompilation'
-    sappend '-XX:TieredStopAtLevel=4'
     if [[ "$JAVA_VERSION" == 28 ]]; then
-        sappend '-XX:+UseCompactObjectHeaders'
-        sappend '-XX:CompilerDirectivesFile=mikohime/.rouge_owo'
-        sappend '-XX:+UseCompressedOops'
-        sappend '-XX:+HotCodeHeap'
         if [[ "$(basename -- "$(dirname -- "$(dirname -- "$SELECTED_JAVA")")")" == "jdk-28+13Miko" ]]; then
             sappend '-XX:+AllowUnverifiedAgentClasses'
         fi
-        sappend '#-XX:+DisableExplicitGC'
     fi
-    sappend '-XX:+UseG1GC'
-    sappend '#-XX:MaxGCPauseMillis=100'
-    sappend '-XX:+UseStringDeduplication'
-    [[ "$JAVA_VERSION" == 28 ]] && sappend '-XX:+AlwaysPreTouchStacks'
-    sappend '-XX:+AlwaysPreTouch'
     [[ "$OLD_CPU_MODE" == "Yes" ]] && sappend '-XX:UseAVX=0'
     if [[ "$LOW_CORE_MODE" == "Yes" ]]; then
         sappend '-XX:CICompilerCount=2'
         sappend '-XX:ConcGCThreads=1'
     fi
     [[ "$LARGE_PAGES_ENABLED" == "Yes" ]] && sappend '-XX:+UseLargePages'
-    append_modern_system_properties
-    [[ "$JAVA_VERSION" == 28 ]] && sappend '--enable-final-field-mutation=ALL-UNNAMED'
+    append_jvm_logger_options
+    append_platform_system_properties
     sappend '-Xss4m'
     sappend "-Xms${HEAP_MIB}m"
     sappend "-Xmx${HEAP_MIB}m"
@@ -993,33 +927,9 @@ write_info() {
 }
 
 write_logging() {
-    {
-        if [[ "$LOGGING_MODE" == "Full" ]]; then
-            printf 'log4j.rootLogger=INFO, ConsoleAppender, file\n'
-        else
-            printf 'log4j.rootLogger=INFO, file\n'
-            printf '\n'
-            printf '# Suppress extremely verbose routine resource-loading messages\n'
-            printf 'log4j.logger.com.fs.starfarer.loading=WARN\n'
-            printf 'log4j.logger.com.genir.renderer.overrides.loading=WARN\n'
-            printf 'log4j.logger.com.fs.starfarer.campaign.rules.Rules=WARN\n'
-        fi
-        printf '\n'
-        printf '#log4j.throwableRenderer=com.fs.starfarer.log.CustomLogj4ExceptionLogger\n'
-        printf '\n'
-        printf '# Console appender\n'
-        printf 'log4j.appender.ConsoleAppender=org.apache.log4j.ConsoleAppender\n'
-        printf 'log4j.appender.ConsoleAppender.layout=org.apache.log4j.PatternLayout\n'
-        printf 'log4j.appender.ConsoleAppender.layout.ConversionPattern=%%-4r [%%t] %%-5p %%c %%x - %%m%%n\n'
-        printf '\n'
-        printf '# Rolling file appender\n'
-        printf 'log4j.appender.file=org.apache.log4j.RollingFileAppender\n'
-        printf 'log4j.appender.file.File=${com.fs.starfarer.settings.paths.logs}/starsector.log\n'
-        printf 'log4j.appender.file.layout=org.apache.log4j.PatternLayout\n'
-        printf 'log4j.appender.file.layout.ConversionPattern=%%-4r [%%t] %%-5p %%c %%x - %%m%%n\n'
-        printf 'log4j.appender.file.MaxFileSize=50000KB\n'
-        printf 'log4j.appender.file.MaxBackupIndex=3\n'
-    } > "$LOGGING_PENDING"
+    local template="$SHARED_DIR/logging/${LOGGING_MODE,,}.properties"
+    [[ -s "$template" ]] || return 1
+    tr -d '\r' < "$template" > "$LOGGING_PENDING"
     [[ -s "$LOGGING_PENDING" ]]
 }
 
@@ -1216,13 +1126,15 @@ reset_selections() {
 }
 
 recommend_heap() {
-    if [[ -n "$PHYSICAL_MEMORY_MIB" ]] && (( PHYSICAL_MEMORY_MIB >= 29000 )); then
-        printf '11264'
-    elif [[ -n "$PHYSICAL_MEMORY_MIB" ]] && (( PHYSICAL_MEMORY_MIB >= 14000 )); then
-        printf '8192'
-    else
-        printf '4096'
-    fi
+    local system_mib="${PHYSICAL_MEMORY_MIB:-0}"
+    awk -F'|' -v memory="$system_mib" '
+        /^[[:space:]]*#/ { next }
+        $1 ~ /^[0-9]+$/ && $2 ~ /^[0-9]+$/ && $1 <= memory && $1 >= threshold {
+            threshold=$1
+            heap=$2
+        }
+        END { print heap }
+    ' "$SHARED_DIR/memory-recommendations.tsv"
 }
 
 describe_heap_value() {
@@ -1350,7 +1262,8 @@ resolve_background_noninteractive() {
         mikosector|pather)     BACKGROUND_SOURCE="$BG_DIR/pather_bg.jpg";  BACKGROUND_LABEL="Mikosector" ;;
         mimikko|Mimikko)       BACKGROUND_SOURCE="$BG_DIR/mimikko_bg.jpg"; BACKGROUND_LABEL="Mimikko" ;;
         gamma|Gamma)           BACKGROUND_SOURCE="$BG_DIR/gamma_bg.jpg";   BACKGROUND_LABEL="Gamma" ;;
-        *) die "MIKO_BACKGROUND must be keep, default, mikosector, mimikko, or gamma." ;;
+        toadsector|Toadsector) BACKGROUND_SOURCE="$BG_DIR/toadsector.jpg"; BACKGROUND_LABEL="Toadsector" ;;
+        *) die "MIKO_BACKGROUND must be keep, default, mikosector, mimikko, gamma, or toadsector." ;;
     esac
 }
 
@@ -1814,7 +1727,7 @@ choose_logging() {
 background_menu() {
     printf '\nLauncher background\n'
     printf -- '--------------------------------------------------------------------------\n'
-    printf '  1. Default Mikohime 25+\n  2. Mikosector\n  3. Mimikko\n  4. Gamma\n  B. Back\n'
+    printf '  1. Default Mikohime 25+\n  2. Mikosector\n  3. Mimikko\n  4. Gamma\n  5. Toadsector\n  B. Back\n'
     prompt_line "Select an option: "
     local src label
     case "$REPLY_LINE" in
@@ -1822,6 +1735,7 @@ background_menu() {
         2) src="$BG_DIR/pather_bg.jpg"; label="Mikosector" ;;
         3) src="$BG_DIR/mimikko_bg.jpg"; label="Mimikko" ;;
         4) src="$BG_DIR/gamma_bg.jpg"; label="Gamma" ;;
+        5) src="$BG_DIR/toadsector.jpg"; label="Toadsector" ;;
         *) return 0 ;;
     esac
     [[ -f "$src" ]] || { warn "Background source is missing: $src"; return 0; }

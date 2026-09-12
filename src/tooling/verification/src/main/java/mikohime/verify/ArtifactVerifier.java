@@ -658,6 +658,14 @@ public final class ArtifactVerifier {
             projectRoot.resolve("../configurator/shared").normalize(),
             relative -> expected.add("configurator/shared/" + relative)
         );
+        collectFiles(
+            projectRoot.resolve("../configurator/windows").normalize(),
+            relative -> {
+                if (!relative.equals("Configure_Me.cmd")) {
+                    expected.add("configurator/windows/" + relative);
+                }
+            }
+        );
         collectFiles(distribution.resolve("shared/configuration"), expected::add);
         collectFiles(distribution.resolve("shared/resources"), expected::add);
         collectFiles(distribution.resolve("windows/configuration"), expected::add);

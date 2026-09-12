@@ -12,7 +12,6 @@ set -uo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "$SCRIPT_DIR/../../.." && pwd)"
 CONFIG="$REPO_ROOT/configurator/linux/Configure_Me.sh"
-DEFAULT_VM_SRC="$REPO_ROOT/distribution/linux/configuration/DefaultVM"
 SHARED_SRC="$REPO_ROOT/configurator/shared"
 WORK="$REPO_ROOT/src/build/linux-config-tests"
 
@@ -64,10 +63,10 @@ make_root() {
     cp -r -- "$SHARED_SRC" "$d/mikohime/configurator/shared"
     cp -- "$CONFIG" "$d/Configure_Me.sh"
     chmod +x "$d/Configure_Me.sh"
-    cp -- "$DEFAULT_VM_SRC" "$d/mikohime/DefaultVM"
     printf 'placeholder\n' > "$d/mikohime/miko_jxp.properties"
     printf 'placeholder\n' > "$d/mikohime/mikohime.properties"
     for b in default pather mimikko gamma; do printf 'JPEG-%s\n' "$b" > "$d/mikohime/bg/${b}_bg.jpg"; done
+    printf 'JPEG-toadsector\n' > "$d/mikohime/bg/toadsector.jpg"
     printf 'JPEG-current\n' > "$d/mikohime/launcher_bg.jpg"
     for n in liblwjgl64.so libopenal64.so libjinput-linux64.so; do printf 'SO\n' > "$d/mikohime/linux/$n"; done
     printf '#!/usr/bin/env bash\necho starsector\n' > "$d/starsector.sh"
@@ -101,6 +100,18 @@ run_gen() {
 
 # -----------------------------------------------------------------------------
 mkdir -p -- "$WORK"
+
+# --- Shared memory recommendations -------------------------------------------
+section "Shared memory recommendations"
+recommendation_file="$SHARED_SRC/memory-recommendations.tsv"
+assert_havex "$recommendation_file" '0|4096|4 GB - recommended for this system' "below 8 GB recommends 4 GB"
+assert_havex "$recommendation_file" '8000|6144|6 GB - recommended for this system' "8-13 GB recommends 6 GB"
+assert_havex "$recommendation_file" '14000|8192|8 GB - recommended for this system' "14-28 GB recommends 8 GB"
+assert_havex "$recommendation_file" '29000|16384|16 GB - recommended for this system' "29 GB or more recommends 16 GB"
+assert_nothave "$SHARED_SRC/memory-presets.tsv" 'recommended for systems with 32 GB RAM' "memory presets contain no stale recommendation"
+for mode in full reduced minimal; do
+    assert_file "$SHARED_SRC/logging/$mode.properties" "$mode logging template exists"
+done
 
 # --- Version matrix: 17, 27, 28 ----------------------------------------------
 for ver in 17 27 28; do
@@ -155,7 +166,7 @@ for ver in 17 27 28; do
             assert_nothave "$simple" '-XX:MaxGCPauseMillis=20' "original pause target stripped on 27"
             assert_havex "$simple" '-XX:+UseCMoveUnconditionally' "AVX2 hint on 27"
             assert_nothave "$simple" '-XX:+ErrorLogSecondaryErrorDetails' "secondary error details dropped on 27"
-            assert_havex "$simple" '-XX:+UseShenandoahGC' "DefaultVM body retained on 27"
+            assert_havex "$simple" '-XX:+UseShenandoahGC' "shared Java 27 profile retained"
             ;;
         28)
             assert_havex "$simple" '-XX:+UseCompactObjectHeaders' "compact headers enabled on 28"
@@ -173,6 +184,12 @@ for ver in 17 27 28; do
             assert_havex "$simple" '--enable-final-field-mutation=ALL-UNNAMED' "final field mutation on 28"
             assert_havex "$simple" '-XX:+ErrorLogSecondaryErrorDetails' "secondary error details on 28"
             assert_have "$simple" '-Djava.library.path=mikohime/linux' "linux native path on 28"
+            assert_havex "$simple" '#-DAsyncLogger.WaitStrategy=busyspin' "busy-spin logger wait disabled by default on 28"
+            if grep -Fxq -- '-DAsyncLogger.WaitStrategy=busyspin' "$simple"; then
+                bad "busy-spin logger wait is not active on 28"
+            else
+                ok "busy-spin logger wait is not active on 28"
+            fi
             ;;
     esac
 done
@@ -195,16 +212,19 @@ make_root "$root"; add_fast_rendering "$root"
 run_gen "$root" MIKO_JAVA="$root/fakejava/java28" MIKO_HEAP_MIB=4096 MIKO_LOGGING=Full
 props="$root/mikohime/mikohime.properties"; simple="$root/Miko_Simple.txt"
 assert_have "$props" 'log4j.rootLogger=INFO, ConsoleAppender, file' "Full retains console appender"
+assert_havex "$simple" '#-DAsyncLogger.WaitStrategy=busyspin' "Full keeps Java 28 busy-spin wait disabled"
 run_gen "$root" MIKO_JAVA="$root/fakejava/java28" MIKO_HEAP_MIB=4096 MIKO_LOGGING=Reduced
 assert_havex "$props" 'log4j.rootLogger=INFO, file' "Reduced drops console appender"
 assert_have "$props" 'log4j.logger.com.fs.starfarer.loading=WARN' "Reduced suppresses verbose loggers"
 assert_havex "$simple" '-XX:+PrintCommandLineFlags' "Reduced keeps JVM diagnostics uncommented"
+assert_havex "$simple" '#-DAsyncLogger.WaitStrategy=busyspin' "Reduced keeps Java 28 busy-spin wait disabled"
 run_gen "$root" MIKO_JAVA="$root/fakejava/java28" MIKO_HEAP_MIB=4096 MIKO_LOGGING=Minimal
 assert_have "$props" 'log4j.rootLogger=INFO, file' "Minimal drops console appender"
 assert_have "$simple" '#-XX:+PrintCommandLineFlags' "Minimal comments JVM diagnostics"
 if grep -Eq '^-XX:\+PrintCommandLineFlags$' "$simple"; then bad "Minimal must not have uncommented PrintCommandLineFlags"; else ok "Minimal has no uncommented PrintCommandLineFlags"; fi
 assert_havex "$simple" '-Xlog:async' "Minimal keeps asynchronous JVM logging enabled"
 assert_nothave "$simple" '#-Xlog:async' "Minimal does not comment asynchronous JVM logging"
+assert_havex "$simple" '#-DAsyncLogger.WaitStrategy=busyspin' "Minimal keeps Java 28 busy-spin wait disabled"
 
 # --- Fast Rendering presence semantics --------------------------------------
 section "Fast Rendering presence semantics"
@@ -293,9 +313,9 @@ assert_exec "$root/Miko_Rouge.sh" "launcher executable under spaced path"
 section "Background selection in transaction"
 root="$WORK/background"
 make_root "$root"
-run_gen "$root" MIKO_JAVA="$root/fakejava/java28" MIKO_HEAP_MIB=4096 MIKO_BACKGROUND=gamma
-assert_true "[[ \"\$(cat '$root/mikohime/launcher_bg.jpg')\" == 'JPEG-gamma' ]]" "selected background committed"
-assert_have "$root/Miko_Info.txt" 'Launcher background: Gamma' "info records background selection"
+run_gen "$root" MIKO_JAVA="$root/fakejava/java28" MIKO_HEAP_MIB=4096 MIKO_BACKGROUND=toadsector
+assert_true "[[ \"\$(cat '$root/mikohime/launcher_bg.jpg')\" == 'JPEG-toadsector' ]]" "Toadsector background committed"
+assert_have "$root/Miko_Info.txt" 'Launcher background: Toadsector' "info records Toadsector background selection"
 
 # --- Native Linux flat layout and CRLF input handling ------------------------
 section "Flat Linux layout"
