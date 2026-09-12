@@ -280,7 +280,7 @@ validate_installation() {
     done
 
     local bg
-    for bg in default_bg.jpg pather_bg.jpg mimikko_bg.jpg gamma_bg.jpg; do
+    for bg in default_bg.jpg pather_bg.jpg mimikko_bg.jpg gamma_bg.jpg toadsector.jpg; do
         [[ -f "$BG_DIR/$bg" ]] ||
             die "A launcher background asset is missing: mikohime/bg/$bg"
     done
@@ -1262,7 +1262,8 @@ resolve_background_noninteractive() {
         mikosector|pather)     BACKGROUND_SOURCE="$BG_DIR/pather_bg.jpg";  BACKGROUND_LABEL="Mikosector" ;;
         mimikko|Mimikko)       BACKGROUND_SOURCE="$BG_DIR/mimikko_bg.jpg"; BACKGROUND_LABEL="Mimikko" ;;
         gamma|Gamma)           BACKGROUND_SOURCE="$BG_DIR/gamma_bg.jpg";   BACKGROUND_LABEL="Gamma" ;;
-        *) die "MIKO_BACKGROUND must be keep, default, mikosector, mimikko, or gamma." ;;
+        toadsector|Toadsector) BACKGROUND_SOURCE="$BG_DIR/toadsector.jpg"; BACKGROUND_LABEL="Toadsector" ;;
+        *) die "MIKO_BACKGROUND must be keep, default, mikosector, mimikko, gamma, or toadsector." ;;
     esac
 }
 
@@ -1726,7 +1727,7 @@ choose_logging() {
 background_menu() {
     printf '\nLauncher background\n'
     printf -- '--------------------------------------------------------------------------\n'
-    printf '  1. Default Mikohime 25+\n  2. Mikosector\n  3. Mimikko\n  4. Gamma\n  B. Back\n'
+    printf '  1. Default Mikohime 25+\n  2. Mikosector\n  3. Mimikko\n  4. Gamma\n  5. Toadsector\n  B. Back\n'
     prompt_line "Select an option: "
     local src label
     case "$REPLY_LINE" in
@@ -1734,6 +1735,7 @@ background_menu() {
         2) src="$BG_DIR/pather_bg.jpg"; label="Mikosector" ;;
         3) src="$BG_DIR/mimikko_bg.jpg"; label="Mimikko" ;;
         4) src="$BG_DIR/gamma_bg.jpg"; label="Gamma" ;;
+        5) src="$BG_DIR/toadsector.jpg"; label="Toadsector" ;;
         *) return 0 ;;
     esac
     [[ -f "$src" ]] || { warn "Background source is missing: $src"; return 0; }

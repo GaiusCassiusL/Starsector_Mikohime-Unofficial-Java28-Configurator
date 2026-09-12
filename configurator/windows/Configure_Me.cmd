@@ -112,16 +112,16 @@ call "!UiModule!" PrintHeader
 echo System status
 echo --------------------------------------------------------------------------
 if /I "!ModernJavaAvailable!"=="Yes" (
-    echo   !ColorGreen!Ready!ColorReset!: Java 27 or 28 detected
+    echo   Java                  : !ColorGreen!Ready - Java 27 or 28 detected!ColorReset!
 ) else if !JavaOptionCount! GTR 0 (
-    echo   !ColorYellow!Usable!ColorReset!: Java 17 detected; Java 28 is recommended
+    echo   Java                  : !ColorYellow!Usable - Java 17 detected; Java 28 is recommended!ColorReset!
 ) else (
-    echo   !ColorRed!Action needed!ColorReset!: Install a supported Java version
+    echo   Java                  : !ColorRed!Action needed - install a supported Java version!ColorReset!
 )
 for /L %%N in (1,1,!JavaOptionCount!) do echo     Java !JavaOptionVersion[%%N]! - !JavaOptionPath[%%N]!
-if defined PhysicalMemoryGiB echo   Memory: approximately !PhysicalMemoryGiB! GB
-if defined PhysicalCoreCount echo   Processor: !PhysicalCoreCount! physical cores, !LogicalProcessorCount! logical processors
-echo   Optional enhancements:
+if defined PhysicalMemoryGiB echo   Memory                : Approximately !PhysicalMemoryGiB! GB
+if defined PhysicalCoreCount echo   Processor             : !PhysicalCoreCount! physical cores, !LogicalProcessorCount! logical processors
+echo   Optional enhancements :
 call "!UiModule!" PrintComponentStatus "Compact"
 echo     These are optional; select 3 to manage them.
 echo(
@@ -130,24 +130,15 @@ echo 2. Basic setup
 echo 3. Advanced setup ^(all options^)
 echo 4. Manage Java and optional components
 echo 5. Change launcher background
-echo 6. View detected system details
-echo 7. Exit
+echo 6. Exit
 echo H. Help
 echo(
-choice /c 1234567H /n /m "Select an option: "
-if errorlevel 8 (
+choice /c 123456H /n /m "Select an option: "
+if errorlevel 7 (
     call :MainHelp
     goto :MainMenuScreen
 )
-if errorlevel 7 goto :ExitConfigurator
-if errorlevel 6 (
-    cls
-    call "!UiModule!" PrintHeader
-    call "!UiModule!" PrintDetectedEnvironment
-    echo(
-    pause
-    goto :MainMenuScreen
-)
+if errorlevel 6 goto :ExitConfigurator
 if errorlevel 5 (
     call "!UiModule!" BackgroundMenu
     goto :MainMenuScreen
@@ -171,6 +162,7 @@ if not defined JavaPath (
     pause
     goto :MainMenuScreen
 )
+call :OfferRecommendedResourceCache
 set "ConfigurationKind=Recommended"
 goto :RecommendedReview
 
@@ -294,8 +286,8 @@ cls
 call "!UiModule!" PrintHeader
 echo Basic setup 3 of 3 - Game memory
 echo --------------------------------------------------------------------------
-if defined PhysicalMemoryGiB echo Detected system memory: approximately !PhysicalMemoryGiB! GB
-echo Recommended for this computer: !RecommendedHeapDescription!
+if defined PhysicalMemoryGiB echo Detected system memory        : Approximately !PhysicalMemoryGiB! GB
+echo Recommended for this computer : !RecommendedHeapDescription!
 echo(
 echo 1. Use the recommended amount
 call "!UiModule!" PrintHeapPreset "2" "1"
@@ -369,6 +361,44 @@ if !PrepatcherCount! GTR 0 (
 )
 exit /b 0
 
+:OfferRecommendedResourceCache
+if /I not "!FastRenderingAvailable!"=="Yes" exit /b 0
+if /I "!ResourceCacheAvailable!"=="Yes" exit /b 0
+cls
+call "!UiModule!" PrintHeader
+echo Recommended enhancement available
+echo --------------------------------------------------------------------------
+echo Fast Rendering is installed, but FR Resource Cache is not installed.
+echo FR Resource Cache is a recommended companion that can improve loading
+echo behavior when Fast Rendering is enabled.
+echo(
+echo The latest release will be downloaded from:
+echo   !ResourceCacheReleasesUrl!
+echo(
+choice /c YN /n /m "Download, install, and enable FR Resource Cache? [Y/N] "
+if errorlevel 2 exit /b 0
+call "!UiModule!" DownloadLatestResourceCache
+if errorlevel 1 (
+    echo(
+    echo !ColorYellow!FR Resource Cache could not be installed. Recommended setup
+    echo will continue with Fast Rendering enabled and Resource Cache disabled.!ColorReset!
+    pause
+    exit /b 0
+)
+call "!EnvironmentModule!" RefreshEnvironment
+call :EnableRecommendedEnhancements
+if /I not "!ResourceCacheAvailable!"=="Yes" (
+    echo(
+    echo !ColorYellow!FR Resource Cache was downloaded but could not be detected.
+    echo Recommended setup will continue with Resource Cache disabled.!ColorReset!
+    pause
+    exit /b 0
+)
+echo(
+echo !ColorGreen!FR Resource Cache was installed and enabled successfully.!ColorReset!
+pause
+exit /b 0
+
 :SelectRecommendedJavaVersion
 for /L %%N in (1,1,!JavaOptionCount!) do if not defined JavaPath if "!JavaOptionVersion[%%N]!"=="%~1" (
     set "JavaPath=!JavaOptionPath[%%N]!"
@@ -383,7 +413,7 @@ cls
 call "!UiModule!" PrintHeader
 echo Review - !ConfigurationKind! setup
 echo --------------------------------------------------------------------------
-echo Java             : !JavaPath! ^(Java !JavaVersion!^)
+echo Java              : !JavaPath! ^(Java !JavaVersion!^)
 echo Game memory       : !SelectedHeapDescription!
 echo Fast Rendering    : !FastRenderingStatus!
 if /I "!FastRenderingStatus!"=="Enabled" echo FR Resource Cache : !ResourceCacheStatus!
@@ -419,24 +449,32 @@ cls
 call "!UiModule!" PrintHeader
 echo Manage Java and optional components
 echo --------------------------------------------------------------------------
-echo Java 27 or 28      : !ModernJavaAvailable!
+echo Java 27 or 28     : !ModernJavaAvailable!
 call "!UiModule!" PrintComponentStatus "Management"
 echo(
 echo J. Download and install Java
 echo R. Download and install Fast Rendering resource cache
 echo U. Check installed component versions
 echo D. Open a component download page
+echo A. Manage OpenAL Soft audio add-on
 echo X. Back to the main menu
 echo H. Help
-choice /c JRUDXH /n /m "Select an option: "
-if errorlevel 6 (
+choice /c JRUDAXH /n /m "Select an option: "
+if errorlevel 7 (
     echo(
     echo Optional components are not required to create a working launcher.
     echo Install only the enhancements you want, then return to configuration.
     pause
     goto :ManageComponentsAgain
 )
-if errorlevel 5 exit /b 0
+if errorlevel 6 exit /b 0
+if errorlevel 5 (
+    call "!UiModule!" ManageOpenAlAddon
+    set "OpenAlMenuResult=!errorlevel!"
+    call "!EnvironmentModule!" RefreshEnvironment
+    if "!OpenAlMenuResult!"=="2" exit /b 0
+    goto :ManageComponentsAgain
+)
 if errorlevel 4 (
     call "!UiModule!" ChooseComponentDownload
     call "!EnvironmentModule!" RefreshEnvironment
@@ -605,6 +643,10 @@ if /I "!MIKO_BACKGROUND!"=="mimikko" (
 if /I "!MIKO_BACKGROUND!"=="gamma" (
     set "BackgroundSource=mikohime\bg\gamma_bg.jpg"
     set "BackgroundLabel=Gamma"
+)
+if /I "!MIKO_BACKGROUND!"=="toadsector" (
+    set "BackgroundSource=mikohime\bg\toadsector.jpg"
+    set "BackgroundLabel=Toadsector"
 )
 if defined MIKO_BACKGROUND if not defined BackgroundSource goto :NonInteractiveFailed
 call "!GenerationModule!" NormalizeSelections

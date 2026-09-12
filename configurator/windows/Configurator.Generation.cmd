@@ -49,47 +49,47 @@ exit /b 1
 
 :WriteInfoPending
 type nul >"!InfoOutputFile!"
->>"!InfoOutputFile!" echo Memory allocation : !SelectedHeapDescription!
->>"!InfoOutputFile!" echo Java installation : !JavaPath! ^(Java !JavaVersion!^)
+>>"!InfoOutputFile!" echo Memory allocation    : !SelectedHeapDescription!
+>>"!InfoOutputFile!" echo Java installation    : !JavaPath! ^(Java !JavaVersion!^)
 if "!JavaVersion!"=="28" (
-    >>"!InfoOutputFile!" echo VM tuning         : Java 28 safe G1 preset
-    >>"!InfoOutputFile!" echo Compact headers   : Enabled
+    >>"!InfoOutputFile!" echo VM tuning            : Java 28 safe G1 preset
+    >>"!InfoOutputFile!" echo Compact headers      : Enabled
 ) else if "!JavaVersion!"=="17" (
-    >>"!InfoOutputFile!" echo VM tuning         : Java 17 safe G1 preset
+    >>"!InfoOutputFile!" echo VM tuning            : Java 17 safe G1 preset
 ) else (
-    >>"!InfoOutputFile!" echo VM tuning         : Mikohime Java 27 preset
+    >>"!InfoOutputFile!" echo VM tuning            : Mikohime Java 27 preset
 )
 if /I "!LowCoreMode!"=="Yes" (
-    >>"!InfoOutputFile!" echo CPU management    : Low-core tuning enabled
+    >>"!InfoOutputFile!" echo CPU management       : Low-core tuning enabled
 ) else (
-    >>"!InfoOutputFile!" echo CPU management    : Normal automatic tuning
+    >>"!InfoOutputFile!" echo CPU management       : Normal automatic tuning
 )
 if defined PhysicalCoreCount (
->>"!InfoOutputFile!" echo Physical CPU cores : !PhysicalCoreCount!
+>>"!InfoOutputFile!" echo Physical CPU cores   : !PhysicalCoreCount!
 ) else (
->>"!InfoOutputFile!" echo Physical CPU cores : Unable to detect
+>>"!InfoOutputFile!" echo Physical CPU cores   : Unable to detect
 )
->>"!InfoOutputFile!" echo Logical processors : !LogicalProcessorCount!
+>>"!InfoOutputFile!" echo Logical processors   : !LogicalProcessorCount!
 if /I "!OldCpuMode!"=="Yes" (
-    >>"!InfoOutputFile!" echo CPU instructions  : AVX disabled for older CPU compatibility
+    >>"!InfoOutputFile!" echo CPU instructions     : AVX disabled for older CPU compatibility
 ) else (
-    >>"!InfoOutputFile!" echo CPU instructions  : Automatic
+    >>"!InfoOutputFile!" echo CPU instructions     : Automatic
 )
 if /I "!LargePagesEnabled!"=="Yes" (
-    >>"!InfoOutputFile!" echo Large Pages       : Enabled
+    >>"!InfoOutputFile!" echo Large Pages          : Enabled
 ) else (
-    >>"!InfoOutputFile!" echo Large Pages       : Disabled
+    >>"!InfoOutputFile!" echo Large Pages          : Disabled
 )
->>"!InfoOutputFile!" echo Logging           : !LoggingMode!
-if defined BackgroundLabel >>"!InfoOutputFile!" echo Launcher background: !BackgroundLabel!
->>"!InfoOutputFile!" echo Fast Rendering     : !FastRenderingStatus!
-if /I "!FastRenderingStatus!"=="Enabled" >>"!InfoOutputFile!" echo FR Resource Cache  : !ResourceCacheStatus!
+>>"!InfoOutputFile!" echo Logging              : !LoggingMode!
+if defined BackgroundLabel >>"!InfoOutputFile!" echo Launcher background  : !BackgroundLabel!
+>>"!InfoOutputFile!" echo Fast Rendering       : !FastRenderingStatus!
+if /I "!FastRenderingStatus!"=="Enabled" >>"!InfoOutputFile!" echo FR Resource Cache    : !ResourceCacheStatus!
 if /I "!PrepatcherStatus!"=="Enabled" (
-    >>"!InfoOutputFile!" echo StarsectorPrepatcher: Enabled ^(!PrepatcherFolder!^)
+    >>"!InfoOutputFile!" echo StarsectorPrepatcher : Enabled ^(!PrepatcherFolder!^)
 ) else if not "!PrepatcherCount!"=="0" (
-    >>"!InfoOutputFile!" echo StarsectorPrepatcher: Disabled
+    >>"!InfoOutputFile!" echo StarsectorPrepatcher : Disabled
 ) else (
-    >>"!InfoOutputFile!" echo StarsectorPrepatcher: Not installed
+    >>"!InfoOutputFile!" echo StarsectorPrepatcher : Not installed
 )
 call :ValidatePendingFile "!InfoOutputFile!"
 exit /b %errorlevel%

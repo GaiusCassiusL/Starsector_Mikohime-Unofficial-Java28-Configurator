@@ -32,52 +32,52 @@ echo Detected environment:
 echo   Java installations : !JavaOptionCount!
 for /L %%N in (1,1,!JavaOptionCount!) do echo     Java !JavaOptionVersion[%%N]! - !JavaOptionPath[%%N]!
 if /I "!ModernJavaAvailable!"=="Yes" (
-    echo   Java 27 or 28     : !ColorGreen!Installed!ColorReset!
+    echo   Java 27 or 28      : !ColorGreen!Installed!ColorReset!
 ) else (
-    echo   Java 27 or 28     : !ColorYellow!Not found!ColorReset!
-    echo     Recommendation : Download and install Java 27 or Java 28 ^(select J below^)
+    echo   Java 27 or 28      : !ColorYellow!Not found!ColorReset!
+    echo     Recommendation   : Download and install Java 27 or Java 28 ^(select J below^)
 )
 if /I "!FastRenderingAvailable!"=="Yes" (
-    echo   Fast Rendering   : !ColorGreen!Installed ^(!FastRenderingVersion!^)!ColorReset!
+    echo   Fast Rendering     : !ColorGreen!Installed ^(!FastRenderingVersion!^)!ColorReset!
 ) else (
-    echo   Fast Rendering   : !ColorYellow!Not found!ColorReset!
-    echo     Repository     : !FastRenderingReleasesUrl!
+    echo   Fast Rendering     : !ColorYellow!Not found!ColorReset!
+    echo     Repository       : !FastRenderingReleasesUrl!
 )
 if /I "!ResourceCacheAvailable!"=="Yes" (
-    echo   FR Resource Cache: !ColorGreen!Installed ^(!ResourceCacheVersion!^)!ColorReset!
+    echo   FR Resource Cache  : !ColorGreen!Installed ^(!ResourceCacheVersion!^)!ColorReset!
 ) else (
-    echo   FR Resource Cache: !ColorYellow!Not found!ColorReset!
-    echo     Repository     : !ResourceCacheReleasesUrl!
-    echo     Install        : Select R below
+    echo   FR Resource Cache  : !ColorYellow!Not found!ColorReset!
+    echo     Repository       : !ResourceCacheReleasesUrl!
+    echo     Install          : Select R below
 )
 if "!PrepatcherCount!"=="0" (
-    echo   Prepatcher       : !ColorYellow!Not found!ColorReset!
-    if not "!IncompatiblePrepatcherCount!"=="0" echo     Compatibility  : !IncompatiblePrepatcherCount! older or unreadable installation^(s^) ignored
-    echo     Repository     : !PrepatcherReleasesUrl!
+    echo   Prepatcher         : !ColorYellow!Not found!ColorReset!
+    if not "!IncompatiblePrepatcherCount!"=="0" echo     Compatibility    : !IncompatiblePrepatcherCount! older or unreadable installation^(s^) ignored
+    echo     Repository       : !PrepatcherReleasesUrl!
 ) else (
-    if "!PrepatcherCount!"=="1" (echo   Prepatcher       : !ColorGreen!Installed ^(v!PrepatcherCandidateVersion[1]!^)!ColorReset!) else (echo   Prepatcher       : !ColorGreen!!PrepatcherCount! compatible installations!ColorReset!)
-    if not "!IncompatiblePrepatcherCount!"=="0" echo     Compatibility  : !IncompatiblePrepatcherCount! older or unreadable installation^(s^) ignored
+    if "!PrepatcherCount!"=="1" (echo   Prepatcher         : !ColorGreen!Installed ^(v!PrepatcherCandidateVersion[1]!^)!ColorReset!) else (echo   Prepatcher         : !ColorGreen!!PrepatcherCount! compatible installations!ColorReset!)
+    if not "!IncompatiblePrepatcherCount!"=="0" echo     Compatibility    : !IncompatiblePrepatcherCount! older or unreadable installation^(s^) ignored
 )
 if /I "!VramOptimizerAvailable!"=="Yes" (
-    echo   VRAM Optimizer   : !ColorGreen!Installed ^(!VramOptimizerVersion!^)!ColorReset!
+    echo   VRAM Optimizer     : !ColorGreen!Installed ^(!VramOptimizerVersion!^)!ColorReset!
 ) else (
-    echo   VRAM Optimizer   : !ColorYellow!Recommended!ColorReset!
-    echo     Repository     : !VramOptimizerReleasesUrl!
+    echo   VRAM Optimizer     : !ColorYellow!Recommended!ColorReset!
+    echo     Repository       : !VramOptimizerReleasesUrl!
 )
 if defined PhysicalMemoryMiB (
     set /a "PhysicalMemoryGiB=(PhysicalMemoryMiB+1023)/1024"
-    echo   Physical memory  : Approximately !PhysicalMemoryGiB! GB
+    echo   Physical memory    : Approximately !PhysicalMemoryGiB! GB
 ) else (
-    echo   Physical memory  : !ColorYellow!Unable to detect!ColorReset!
+    echo   Physical memory    : !ColorYellow!Unable to detect!ColorReset!
 )
 if defined PhysicalCoreCount (
     echo   Physical CPU cores : !PhysicalCoreCount!
 ) else (
     echo   Physical CPU cores : !ColorYellow!Unable to detect!ColorReset!
 )
-echo   Logical processors : !LogicalProcessorCount!
+echo   Logical processors  : !LogicalProcessorCount!
 if /I "!UnsafeComponentNamesFound!"=="Yes" (
-    echo   Component names   : !ColorYellow!Folders containing CMD metacharacters are ignored!ColorReset!
+    echo   Component names    : !ColorYellow!Folders containing CMD metacharacters are ignored!ColorReset!
 )
 exit /b 0
 
@@ -87,6 +87,7 @@ if /I "%~1"=="Compact" (
     if /I "!ResourceCacheAvailable!"=="Yes" (echo     FR Resource Cache : Installed ^(!ResourceCacheVersion!^)) else (echo     FR Resource Cache : Not installed)
     if "!PrepatcherCount!"=="0" (echo     Prepatcher        : Not installed) else if "!PrepatcherCount!"=="1" (echo     Prepatcher        : Installed ^(v!PrepatcherCandidateVersion[1]!^)) else (echo     Prepatcher        : !PrepatcherCount! compatible installations)
     if /I "!VramOptimizerAvailable!"=="Yes" (echo     VRAM Optimizer    : Installed ^(!VramOptimizerVersion!^)) else (echo     VRAM Optimizer    : Not installed)
+    echo     OpenAL Soft       : !OpenAlAddonStatus! ^(v!OpenAlAddonVersion!^)
     exit /b 0
 )
 if /I "%~1"=="Detailed" (
@@ -94,12 +95,14 @@ if /I "%~1"=="Detailed" (
     if /I "!ResourceCacheAvailable!"=="Yes" (echo   FR Resource Cache : Installed ^(!ResourceCacheVersion!^) - requires Fast Rendering) else (echo   FR Resource Cache : Not installed - optional)
     if "!PrepatcherCount!"=="0" (echo   Prepatcher        : Not installed - optional mod compatibility tool) else if "!PrepatcherCount!"=="1" (echo   Prepatcher        : Installed ^(v!PrepatcherCandidateVersion[1]!^)) else (echo   Prepatcher        : !PrepatcherCount! compatible installations)
     if /I "!VramOptimizerAvailable!"=="Yes" (echo   VRAM Optimizer    : Installed ^(!VramOptimizerVersion!^)) else (echo   VRAM Optimizer    : Not installed - recommended separately)
+    echo   OpenAL Soft       : !OpenAlAddonStatus! ^(v!OpenAlAddonVersion!^) - optional Windows audio replacement
     exit /b 0
 )
 if /I "!FastRenderingAvailable!"=="Yes" (echo Fast Rendering    : Yes ^(!FastRenderingVersion!^)) else (echo Fast Rendering    : No)
 if /I "!ResourceCacheAvailable!"=="Yes" (echo FR Resource Cache : Yes ^(!ResourceCacheVersion!^)) else (echo FR Resource Cache : No)
 if "!PrepatcherCount!"=="0" (echo Prepatcher        : No) else if "!PrepatcherCount!"=="1" (echo Prepatcher        : Yes ^(v!PrepatcherCandidateVersion[1]!^)) else (echo Prepatcher        : Yes ^(!PrepatcherCount! compatible installations^))
 if /I "!VramOptimizerAvailable!"=="Yes" (echo VRAM Optimizer    : Yes ^(!VramOptimizerVersion!^)) else (echo VRAM Optimizer    : No)
+echo OpenAL Soft       : !OpenAlAddonStatus! ^(v!OpenAlAddonVersion!^)
 exit /b 0
 
 :CheckComponentUpdates
@@ -375,6 +378,124 @@ exit /b 0
 if defined ResourceCacheInstallRoot if exist "!ResourceCacheInstallRoot!\." rmdir /S /Q "!ResourceCacheInstallRoot!" 2>nul
 exit /b 0
 
+:ManageOpenAlAddon
+:ManageOpenAlAddonAgain
+cls
+call :PrintHeader
+echo OpenAL Soft 1.25.1 audio add-on
+echo --------------------------------------------------------------------------
+echo Status: !OpenAlAddonStatus!
+echo(
+echo Installing downloads the add-on, replaces the game OpenAL DLLs, and
+echo installs the audio utility. Original files are retained in DLLBK.
+echo(
+echo I. Install or repair the add-on
+echo R. Recover from an incomplete installation
+echo U. Uninstall and restore original files
+echo C. Open the audio configuration utility
+echo B. Back
+echo X. Return to the main menu
+echo H. Help
+choice /c IRUCBXH /n /m "Select an option: "
+if errorlevel 7 (
+    echo(
+    echo Repairs reapply the packaged files without replacing the original backups.
+    echo Uninstall restores files that existed before installation and removes only
+    echo files created by the add-on. The downloaded payload remains available.
+    echo oalinst.exe is a separate system-wide Creative installer. Mikohime never
+    echo runs it automatically and cannot undo system changes made by it.
+    pause
+    goto :ManageOpenAlAddonAgain
+)
+if errorlevel 6 exit /b 2
+if errorlevel 5 exit /b 0
+if errorlevel 4 (
+    cls
+    call :PrintHeader
+    echo Recommended OpenAL Soft settings
+    echo --------------------------------------------------------------------------
+    echo(
+    echo   Playback ^> Sample Format       : 32-bit float
+    echo   Playback ^> Resampler Quality   : Maximum quality
+    echo   HRTF ^> HRTF Render Method      : Maximum quality
+    echo(
+    echo These settings prioritize audio quality and may use slightly more CPU.
+    echo HRTF is primarily beneficial when using headphones.
+    echo Apply the changes in the utility before closing it.
+    echo(
+    pause
+    powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "!HelperScript!" -Action OpenAudioConfigurator
+    if errorlevel 1 pause
+    goto :ManageOpenAlAddonAgain
+)
+if errorlevel 3 (
+    if /I not "!OpenAlAddonStatus!"=="Installed" if /I not "!OpenAlAddonStatus!"=="Modified" if /I not "!OpenAlAddonStatus!"=="Different version" (
+        echo(
+        echo The OpenAL Soft add-on does not have a usable installation record.
+        pause
+        goto :ManageOpenAlAddonAgain
+    )
+    echo(
+    echo This restores the original files recorded during the first installation.
+    if /I "!OpenAlAddonStatus!"=="Modified" echo Warning: files changed after installation will be replaced.
+    choice /c YN /n /m "Uninstall the OpenAL Soft add-on? [Y/N] "
+    if errorlevel 2 goto :ManageOpenAlAddonAgain
+    powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "!HelperScript!" -Action UninstallOpenAlAddon
+    if errorlevel 1 (
+        echo !ColorRed!Unable to uninstall the OpenAL Soft add-on.!ColorReset!
+    ) else (
+        echo !ColorGreen!OpenAL Soft was uninstalled and original files were restored.!ColorReset!
+    )
+    pause
+    exit /b 0
+)
+if errorlevel 2 (
+    if /I not "!OpenAlAddonStatus!"=="Incomplete installation" (
+        echo(
+        echo Recovery is only available for an incomplete installation.
+        pause
+        goto :ManageOpenAlAddonAgain
+    )
+    echo(
+    echo Recovery restores available backups and removes unchanged add-on files.
+    choice /c YN /n /m "Recover the original OpenAL files? [Y/N] "
+    if errorlevel 2 goto :ManageOpenAlAddonAgain
+    powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "!HelperScript!" -Action RecoverOpenAlAddon
+    if errorlevel 1 (
+        echo !ColorRed!Unable to recover the incomplete OpenAL installation.!ColorReset!
+    ) else (
+        echo !ColorGreen!The incomplete OpenAL installation was recovered.!ColorReset!
+    )
+    pause
+    exit /b 0
+)
+echo(
+if /I "!OpenAlAddonStatus!"=="Incomplete installation" (
+    echo Recover the incomplete installation before installing again.
+    pause
+    goto :ManageOpenAlAddonAgain
+)
+if /I "!OpenAlAddonStatus!"=="Different version" (
+    echo Uninstall the recorded version before installing this download version.
+    pause
+    goto :ManageOpenAlAddonAgain
+)
+if /I "!OpenAlAddonStatus!"=="Modified" echo This repair replaces modified add-on files but preserves the original backups.
+if /I "!OpenAlAddonStatus!"=="Installed" echo The add-on is already installed. Continuing performs a verified repair.
+if /I "!OpenAlAddonStatus!"=="Not downloaded" echo The 17 MB add-on will be downloaded from GitHub before installation.
+if /I "!OpenAlAddonStatus!"=="Payload missing" echo The add-on payload will be downloaded again before repair.
+choice /c YN /n /m "Download and install, or repair, the OpenAL Soft add-on? [Y/N] "
+if errorlevel 2 goto :ManageOpenAlAddonAgain
+powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "!HelperScript!" -Action InstallOpenAlAddon
+if errorlevel 1 (
+    echo !ColorRed!Unable to install or repair the OpenAL Soft add-on.!ColorReset!
+) else (
+    echo !ColorGreen!OpenAL Soft 1.25.1 was installed successfully.!ColorReset!
+    echo Configure_Audio.bat and oalinst.exe are now in the Starsector folder.
+)
+pause
+exit /b 0
+
 :ResolvePrepatcherSelection
 if "!PrepatcherCount!"=="0" exit /b 0
 
@@ -589,14 +710,14 @@ if !LogicalProcessorCount! LEQ 4 (
     set "RecommendedLowCoreMode=No"
 )
 if defined PhysicalCoreCount (
-    echo Detected physical CPU cores: !PhysicalCoreCount!
+    echo Detected physical CPU cores  : !PhysicalCoreCount!
 ) else (
-    echo Detected physical CPU cores: Unable to detect
+    echo Detected physical CPU cores  : Unable to detect
 )
-echo Available logical processors: !LogicalProcessorCount!
+echo Available logical processors : !LogicalProcessorCount!
 echo Low-core tuning uses the logical processors currently available to the JVM,
 echo including any Windows affinity or resource limits.
-echo Recommended low-core tuning: !RecommendedLowCoreMode!
+echo Recommended low-core tuning  : !RecommendedLowCoreMode!
 echo(
 echo 1. Use the recommended setting
 echo 2. Override the recommendation
@@ -702,10 +823,13 @@ echo 1. Default Mikohime 25+
 echo 2. Mikosector
 echo 3. Mimikko
 echo 4. Gamma
+echo 5. Toadsector
 echo X. Back to the main menu
-choice /c 1234X /n /m "Select an option: "
-if errorlevel 5 exit /b 0
-if errorlevel 4 (
+choice /c 12345X /n /m "Select an option: "
+if errorlevel 6 exit /b 0
+if errorlevel 5 (
+    call :CopyBackground "mikohime\bg\toadsector.jpg" "Toadsector"
+) else if errorlevel 4 (
     call :CopyBackground "mikohime\bg\gamma_bg.jpg" "Gamma"
 ) else if errorlevel 3 (
     call :CopyBackground "mikohime\bg\mimikko_bg.jpg" "Mimikko"

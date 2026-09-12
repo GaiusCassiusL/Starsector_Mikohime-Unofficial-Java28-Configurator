@@ -27,7 +27,6 @@ tasks.register<Sync>("assembleWindowsDistribution") {
                 exclude("Configure_Me.cmd")
             }
         }
-
         into("windows") {
             from(repositoryRoot.dir("distribution/windows/native"))
         }

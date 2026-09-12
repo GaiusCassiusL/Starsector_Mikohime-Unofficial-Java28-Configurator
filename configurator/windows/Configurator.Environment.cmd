@@ -86,6 +86,13 @@ if exist "starsector-core\fr-resource-cache-agent.jar" (
     )
 )
 
+set "OpenAlAddonStatus=Unavailable"
+set "OpenAlAddonVersion=unknown"
+for /f "tokens=1,2 delims=|" %%O in ('powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "!HelperScript!" -Action GetOpenAlAddonStatus 2^>nul') do (
+    set "OpenAlAddonStatus=%%O"
+    set "OpenAlAddonVersion=%%P"
+)
+
 set "VramOptimizerAvailable=No"
 set "VramOptimizerVersion=version unknown"
 for /f "tokens=1,2 delims=|" %%V in ('powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "!HelperScript!" -Action DetectVramOptimizer 2^>nul') do (

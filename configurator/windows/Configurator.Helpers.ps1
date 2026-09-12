@@ -7,16 +7,21 @@ param(
         'DetectVramOptimizer',
         'GetJarVersion',
         'GetMemorySummary',
+        'GetOpenAlAddonStatus',
         'GetPrepatcherVersion',
         'GetSystemInfo',
         'InstallJdk',
+        'InstallOpenAlAddon',
         'InstallResourceCache',
         'ListJavaFolders',
         'ListPrepatcherFolders',
         'OpenUrl',
+        'OpenAudioConfigurator',
+        'RecoverOpenAlAddon',
         'RemoveDirectory',
         'RenderProfile',
         'TestUnsafeInput',
+        'UninstallOpenAlAddon',
         'ValidateArgs'
     )]
     [string]$Action
@@ -367,6 +372,605 @@ function Install-ResourceCache {
     [IO.File]::Move($stagedJar, $destination)
 }
 
+function Resolve-ContainedPath {
+    param(
+        [Parameter(Mandatory = $true)][string]$Root,
+        [Parameter(Mandatory = $true)][string]$Relative
+    )
+
+    if ([IO.Path]::IsPathRooted($Relative) -or
+        $Relative.Split([char[]]'\/') -contains '..') {
+        throw "Unsafe relative path: $Relative"
+    }
+    $rootPath = [IO.Path]::GetFullPath($Root).TrimEnd('\', '/') + [IO.Path]::DirectorySeparatorChar
+    $path = [IO.Path]::GetFullPath((Join-Path $rootPath $Relative))
+    if (-not $path.StartsWith($rootPath, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Path escapes its required root: $Relative"
+    }
+    return $path
+}
+
+function Get-OpenAlRoot {
+    $gameRoot = [IO.Path]::GetFullPath((Get-Location).Path)
+    $gameRootPrefix = $gameRoot.TrimEnd('\', '/') + [IO.Path]::DirectorySeparatorChar
+    $configuredRoot = [Environment]::GetEnvironmentVariable('OPENAL_ADDON_ROOT')
+    $addonRoot = if ([string]::IsNullOrWhiteSpace($configuredRoot)) {
+        Join-Path $gameRoot 'mikohime\openal'
+    }
+    else {
+        [IO.Path]::GetFullPath($configuredRoot)
+    }
+    if (-not ($addonRoot.TrimEnd('\', '/') + [IO.Path]::DirectorySeparatorChar).StartsWith(
+        $gameRootPrefix,
+        [StringComparison]::OrdinalIgnoreCase
+    )) {
+        throw 'The OpenAL add-on folder must be inside the game root.'
+    }
+    return [pscustomobject]@{
+        GameRoot = $gameRoot
+        AddonRoot = $addonRoot
+        ManifestPath = Join-Path $addonRoot 'addon-manifest.json'
+        StatePath = Join-Path $addonRoot 'install-state.json'
+        BackupRoot = Join-Path $addonRoot 'DLLBK'
+    }
+}
+
+function Download-OpenAlAddon {
+    param([switch]$Force)
+
+    $root = Get-OpenAlRoot
+    if (-not $Force -and (Test-Path -LiteralPath $root.ManifestPath -PathType Leaf)) {
+        return
+    }
+
+    $url = [Uri](Get-RequiredEnvironmentValue 'OpenAlAddonDownloadUrl')
+    if ($url.Scheme -ne 'https' -or $url.Host -ne 'github.com') {
+        throw 'The OpenAL add-on download URL is not trusted.'
+    }
+    $expectedHash = Get-RequiredEnvironmentValue 'OpenAlAddonDownloadSha256'
+    if ($expectedHash -notmatch '^[0-9A-Fa-f]{64}$') {
+        throw 'The OpenAL add-on download checksum is invalid.'
+    }
+    $version = Get-RequiredEnvironmentValue 'OpenAlAddonDownloadVersion'
+    $mappings = @(
+        [pscustomobject]@{ archive = 'mikohime/alsoft-config/alsoft-config.exe'; source = 'cfg/alsoft-config.exe'; destination = 'mikohime/alsoft-config/alsoft-config.exe' }
+        [pscustomobject]@{ archive = 'mikohime/alsoft-config/libgcc_s_seh-1.dll'; source = 'cfg/libgcc_s_seh-1.dll'; destination = 'mikohime/alsoft-config/libgcc_s_seh-1.dll' }
+        [pscustomobject]@{ archive = 'mikohime/alsoft-config/libstdc++-6.dll'; source = 'cfg/libstdc++-6.dll'; destination = 'mikohime/alsoft-config/libstdc++-6.dll' }
+        [pscustomobject]@{ archive = 'mikohime/alsoft-config/libwinpthread-1.dll'; source = 'cfg/libwinpthread-1.dll'; destination = 'mikohime/alsoft-config/libwinpthread-1.dll' }
+        [pscustomobject]@{ archive = 'mikohime/alsoft-config/platforms/qwindows.dll'; source = 'cfg/platforms/qwindows.dll'; destination = 'mikohime/alsoft-config/platforms/qwindows.dll' }
+        [pscustomobject]@{ archive = 'mikohime/alsoft-config/Qt6Core.dll'; source = 'cfg/Qt6Core.dll'; destination = 'mikohime/alsoft-config/Qt6Core.dll' }
+        [pscustomobject]@{ archive = 'mikohime/alsoft-config/Qt6Gui.dll'; source = 'cfg/Qt6Gui.dll'; destination = 'mikohime/alsoft-config/Qt6Gui.dll' }
+        [pscustomobject]@{ archive = 'mikohime/alsoft-config/Qt6Widgets.dll'; source = 'cfg/Qt6Widgets.dll'; destination = 'mikohime/alsoft-config/Qt6Widgets.dll' }
+        [pscustomobject]@{ archive = 'mikohime/alsoft-config/zlib1.dll'; source = 'cfg/zlib1.dll'; destination = 'mikohime/alsoft-config/zlib1.dll' }
+        [pscustomobject]@{ archive = 'mikohime/windows/OpenAL32.dll'; source = 'win/OpenAL32.dll'; destination = 'mikohime/windows/OpenAL32.dll' }
+        [pscustomobject]@{ archive = 'mikohime/windows/OpenAL64.dll'; source = 'win/OpenAL64.dll'; destination = 'mikohime/windows/OpenAL64.dll' }
+        [pscustomobject]@{ archive = 'Configure_Audio.bat'; source = 'root/Configure_Audio.bat'; destination = 'Configure_Audio.bat' }
+        [pscustomobject]@{ archive = 'oalinst.exe'; source = 'root/oalinst.exe'; destination = 'oalinst.exe' }
+    )
+
+    $transactionRoot = Join-Path $root.GameRoot ('mikohime\.openal-download-' + [guid]::NewGuid().ToString('N'))
+    $archivePath = Join-Path $transactionRoot 'openal.zip'
+    $stagedRoot = Join-Path $transactionRoot 'staged'
+    $previousPayload = Join-Path $transactionRoot 'previous-payload'
+    [void](New-Item -ItemType Directory -Path $stagedRoot -Force)
+    try {
+        $ProgressPreference = 'SilentlyContinue'
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        Invoke-WebRequest -UseBasicParsing -Uri $url.AbsoluteUri -OutFile $archivePath
+        if ((Get-Item -LiteralPath $archivePath).Length -le 0 -or
+            (Get-Item -LiteralPath $archivePath).Length -gt 25MB -or
+            (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash -ne $expectedHash) {
+            throw 'The downloaded OpenAL add-on archive failed validation.'
+        }
+
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        $archive = [IO.Compression.ZipFile]::OpenRead($archivePath)
+        try {
+            $files = @($archive.Entries | Where-Object { -not [string]::IsNullOrEmpty($_.Name) })
+            $expectedEntries = @($mappings.archive | Sort-Object)
+            $actualEntries = @($files.FullName | ForEach-Object { $_.Replace('\', '/') } | Sort-Object)
+            if (($expectedEntries -join "`n") -ne ($actualEntries -join "`n")) {
+                throw 'The OpenAL add-on archive contains an unexpected file set.'
+            }
+
+            $manifestFiles = foreach ($mapping in $mappings) {
+                $entry = $archive.GetEntry([string]$mapping.archive)
+                if ($null -eq $entry -or $entry.Length -le 0 -or $entry.Length -gt 15MB) {
+                    throw "The OpenAL add-on archive entry is invalid: $($mapping.archive)"
+                }
+                $destination = Resolve-ContainedPath (Join-Path $stagedRoot 'payload') ([string]$mapping.source)
+                $parent = Split-Path -Parent $destination
+                [void](New-Item -ItemType Directory -Path $parent -Force)
+                $input = $entry.Open()
+                $output = [IO.File]::Create($destination)
+                try {
+                    $input.CopyTo($output)
+                }
+                finally {
+                    $output.Dispose()
+                    $input.Dispose()
+                }
+                [pscustomobject]@{
+                    source = [string]$mapping.source
+                    destination = [string]$mapping.destination
+                    sha256 = (Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash
+                }
+            }
+        }
+        finally {
+            $archive.Dispose()
+        }
+
+        $manifest = [pscustomobject]@{
+            name = 'OpenAL Soft Windows add-on'
+            version = $version
+            downloadUrl = $url.AbsoluteUri
+            downloadSha256 = $expectedHash.ToUpperInvariant()
+            files = @($manifestFiles)
+        }
+        [IO.File]::WriteAllText(
+            (Join-Path $stagedRoot 'addon-manifest.json'),
+            ($manifest | ConvertTo-Json -Depth 6) + "`r`n",
+            [Text.UTF8Encoding]::new($false)
+        )
+        [IO.File]::WriteAllText(
+            (Join-Path $stagedRoot 'README.txt'),
+            "Downloaded OpenAL Soft $version add-on.`r`nSource: $($url.AbsoluteUri)`r`n`r`nRecommended settings:`r`n  Playback > Sample Format       : 32-bit float`r`n  Playback > Resampler Quality   : Maximum quality`r`n  HRTF > HRTF Render Method      : Maximum quality`r`n",
+            [Text.UTF8Encoding]::new($false)
+        )
+
+        [void](New-Item -ItemType Directory -Path $root.AddonRoot -Force)
+        $payloadPath = Join-Path $root.AddonRoot 'payload'
+        if (Test-Path -LiteralPath $payloadPath) {
+            [IO.Directory]::Move($payloadPath, $previousPayload)
+        }
+        try {
+            [IO.Directory]::Move((Join-Path $stagedRoot 'payload'), $payloadPath)
+            [IO.File]::Copy((Join-Path $stagedRoot 'addon-manifest.json'), $root.ManifestPath, $true)
+            [IO.File]::Copy((Join-Path $stagedRoot 'README.txt'), (Join-Path $root.AddonRoot 'README.txt'), $true)
+        }
+        catch {
+            Remove-Item -LiteralPath $payloadPath -Recurse -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $root.ManifestPath -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath (Join-Path $root.AddonRoot 'README.txt') -Force -ErrorAction SilentlyContinue
+            if (Test-Path -LiteralPath $previousPayload) {
+                [IO.Directory]::Move($previousPayload, $payloadPath)
+            }
+            throw
+        }
+    }
+    finally {
+        Remove-Item -LiteralPath $transactionRoot -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
+function Get-OpenAlContext {
+    param([switch]$VerifyPayload)
+
+    $root = Get-OpenAlRoot
+    $gameRoot = $root.GameRoot
+    $addonRoot = $root.AddonRoot
+    $manifestPath = $root.ManifestPath
+    if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
+        throw "OpenAL add-on manifest is missing: $manifestPath"
+    }
+    $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+    if ([string]::IsNullOrWhiteSpace([string]$manifest.version) -or @($manifest.files).Count -eq 0) {
+        throw 'The OpenAL add-on manifest is invalid.'
+    }
+
+    $destinations = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    foreach ($file in @($manifest.files)) {
+        if ([string]::IsNullOrWhiteSpace([string]$file.source) -or
+            [string]::IsNullOrWhiteSpace([string]$file.destination) -or
+            [string]$file.sha256 -notmatch '^[0-9A-Fa-f]{64}$') {
+            throw 'The OpenAL add-on manifest contains an invalid file entry.'
+        }
+        $source = Resolve-ContainedPath (Join-Path $addonRoot 'payload') ([string]$file.source)
+        [void](Resolve-ContainedPath $gameRoot ([string]$file.destination))
+        if (-not $destinations.Add([string]$file.destination)) {
+            throw "The OpenAL add-on manifest repeats a destination: $($file.destination)"
+        }
+        if (-not (Test-Path -LiteralPath $source -PathType Leaf) -or
+            ($VerifyPayload -and
+                (Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash -ne [string]$file.sha256)) {
+            throw "OpenAL payload validation failed: $($file.source)"
+        }
+    }
+
+    return [pscustomobject]@{
+        GameRoot = $gameRoot
+        AddonRoot = $addonRoot
+        Manifest = $manifest
+        StatePath = Join-Path $addonRoot 'install-state.json'
+        BackupRoot = Join-Path $addonRoot 'DLLBK'
+    }
+}
+
+function Read-OpenAlState {
+    param($Context, [switch]$RequireCurrentManifest, [switch]$VerifyBackups)
+
+    if (-not (Test-Path -LiteralPath $Context.StatePath -PathType Leaf)) {
+        throw 'The OpenAL add-on installation state is missing.'
+    }
+    $state = Get-Content -LiteralPath $Context.StatePath -Raw | ConvertFrom-Json
+    if ([string]::IsNullOrWhiteSpace([string]$state.version) -or @($state.files).Count -eq 0) {
+        throw 'The OpenAL add-on installation state is invalid.'
+    }
+    if ($RequireCurrentManifest -and (
+        [string]$state.version -ne [string]$Context.Manifest.version -or
+        @($state.files).Count -ne @($Context.Manifest.files).Count
+    )) {
+        throw 'The OpenAL add-on installation state does not match this payload.'
+    }
+    $destinations = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    foreach ($entry in @($state.files)) {
+        if ([string]::IsNullOrWhiteSpace([string]$entry.destination) -or
+            [string]$entry.sha256 -notmatch '^[0-9A-Fa-f]{64}$' -or
+            -not $destinations.Add([string]$entry.destination)) {
+            throw 'The OpenAL add-on installation state contains an invalid file entry.'
+        }
+        [void](Resolve-ContainedPath $Context.GameRoot ([string]$entry.destination))
+        if ([bool]$entry.existed) {
+            if ([string]$entry.originalSha256 -notmatch '^[0-9A-Fa-f]{64}$') {
+                throw "The OpenAL backup state is invalid: $($entry.destination)"
+            }
+            $backup = Resolve-ContainedPath $Context.BackupRoot ([string]$entry.destination)
+            if (-not (Test-Path -LiteralPath $backup -PathType Leaf) -or
+                ($VerifyBackups -and
+                    (Get-FileHash -LiteralPath $backup -Algorithm SHA256).Hash -ne [string]$entry.originalSha256)) {
+                throw "The OpenAL backup is missing or damaged: $($entry.destination)"
+            }
+        }
+    }
+    if ($RequireCurrentManifest) {
+        foreach ($manifestFile in @($Context.Manifest.files)) {
+            $matches = @($state.files | Where-Object {
+                [string]$_.destination -eq [string]$manifestFile.destination -and
+                [string]$_.sha256 -eq [string]$manifestFile.sha256
+            })
+            if ($matches.Count -ne 1) {
+                throw "The OpenAL add-on state is missing a file: $($manifestFile.destination)"
+            }
+        }
+    }
+    return $state
+}
+
+function Copy-FileWithParent {
+    param([string]$Source, [string]$Destination)
+
+    $parent = Split-Path -Parent $Destination
+    if (-not (Test-Path -LiteralPath $parent -PathType Container)) {
+        [void](New-Item -ItemType Directory -Path $parent -Force)
+    }
+    [IO.File]::Copy($Source, $Destination, $true)
+}
+
+function Restore-OpenAlSnapshot {
+    param($Context, [array]$Snapshot)
+
+    for ($index = $Snapshot.Count - 1; $index -ge 0; $index--) {
+        $item = $Snapshot[$index]
+        $destination = Resolve-ContainedPath $Context.GameRoot ([string]$item.destination)
+        if ([bool]$item.existed) {
+            Copy-FileWithParent ([string]$item.snapshot) $destination
+        }
+        elseif (Test-Path -LiteralPath $destination -PathType Leaf) {
+            Remove-Item -LiteralPath $destination -Force
+        }
+    }
+}
+
+function Install-OpenAlAddon {
+    $root = Get-OpenAlRoot
+    $downloadRequired = -not (Test-Path -LiteralPath $root.ManifestPath -PathType Leaf)
+    if (-not $downloadRequired) {
+        try {
+            [void](Get-OpenAlContext -VerifyPayload)
+        }
+        catch {
+            $downloadRequired = $true
+        }
+    }
+    if ($downloadRequired) {
+        Download-OpenAlAddon -Force
+    }
+    $context = Get-OpenAlContext -VerifyPayload
+    $isRepair = Test-Path -LiteralPath $context.StatePath -PathType Leaf
+    if (-not $isRepair -and (Test-Path -LiteralPath $context.BackupRoot)) {
+        throw 'An incomplete OpenAL installation backup exists. Restore or remove it before installing.'
+    }
+
+    $state = $null
+    if ($isRepair) {
+        $state = Read-OpenAlState $context -RequireCurrentManifest -VerifyBackups
+    }
+    else {
+        [void](New-Item -ItemType Directory -Path $context.BackupRoot -Force)
+        try {
+            $stateFiles = foreach ($file in @($context.Manifest.files)) {
+                $destination = Resolve-ContainedPath $context.GameRoot ([string]$file.destination)
+                if (Test-Path -LiteralPath $destination -PathType Container) {
+                    throw "A directory blocks the OpenAL destination: $($file.destination)"
+                }
+                $existed = Test-Path -LiteralPath $destination -PathType Leaf
+                $originalHash = $null
+                if ($existed) {
+                    $originalHash = (Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash
+                    $backup = Resolve-ContainedPath $context.BackupRoot ([string]$file.destination)
+                    Copy-FileWithParent $destination $backup
+                }
+                [pscustomobject]@{
+                    source = [string]$file.source
+                    destination = [string]$file.destination
+                    sha256 = [string]$file.sha256
+                    existed = $existed
+                    originalSha256 = $originalHash
+                }
+            }
+            $state = [pscustomobject]@{
+                version = [string]$context.Manifest.version
+                installedAt = [DateTime]::UtcNow.ToString('o')
+                files = @($stateFiles)
+            }
+        }
+        catch {
+            Remove-Item -LiteralPath $context.BackupRoot -Recurse -Force -ErrorAction SilentlyContinue
+            throw
+        }
+    }
+
+    $transactionRoot = Join-Path $context.AddonRoot ('.openal-transaction-' + [guid]::NewGuid().ToString('N'))
+    $snapshotRoot = Join-Path $transactionRoot 'current'
+    [void](New-Item -ItemType Directory -Path $snapshotRoot -Force)
+    $snapshot = @()
+    try {
+        foreach ($file in @($context.Manifest.files)) {
+            $destination = Resolve-ContainedPath $context.GameRoot ([string]$file.destination)
+            $existed = Test-Path -LiteralPath $destination -PathType Leaf
+            $snapshotPath = Resolve-ContainedPath $snapshotRoot ([string]$file.destination)
+            if ($existed) {
+                Copy-FileWithParent $destination $snapshotPath
+            }
+            $snapshot += [pscustomobject]@{
+                destination = [string]$file.destination
+                existed = $existed
+                snapshot = $snapshotPath
+            }
+        }
+        foreach ($file in @($context.Manifest.files)) {
+            $source = Resolve-ContainedPath (Join-Path $context.AddonRoot 'payload') ([string]$file.source)
+            $destination = Resolve-ContainedPath $context.GameRoot ([string]$file.destination)
+            Copy-FileWithParent $source $destination
+            if ((Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash -ne [string]$file.sha256) {
+                throw "OpenAL installation verification failed: $($file.destination)"
+            }
+        }
+        if (-not $isRepair) {
+            $stateTemp = Join-Path $transactionRoot 'install-state.json'
+            [IO.File]::WriteAllText(
+                $stateTemp,
+                ($state | ConvertTo-Json -Depth 6) + "`r`n",
+                [Text.UTF8Encoding]::new($false)
+            )
+            [IO.File]::Copy($stateTemp, $context.StatePath, $true)
+        }
+    }
+    catch {
+        $originalError = $_
+        try {
+            Restore-OpenAlSnapshot $context $snapshot
+        }
+        catch {
+            throw "$($originalError.Exception.Message) Rollback also failed: $($_.Exception.Message)"
+        }
+        if (-not $isRepair) {
+            Remove-Item -LiteralPath $context.StatePath -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $context.BackupRoot -Recurse -Force -ErrorAction SilentlyContinue
+        }
+        throw $originalError
+    }
+    finally {
+        Remove-Item -LiteralPath $transactionRoot -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
+function Uninstall-OpenAlAddon {
+    $context = Get-OpenAlContext
+    $state = Read-OpenAlState $context -VerifyBackups
+    $transactionRoot = Join-Path $context.AddonRoot ('.openal-transaction-' + [guid]::NewGuid().ToString('N'))
+    $snapshotRoot = Join-Path $transactionRoot 'current'
+    [void](New-Item -ItemType Directory -Path $snapshotRoot -Force)
+    $snapshot = @()
+    try {
+        foreach ($entry in @($state.files)) {
+            $destination = Resolve-ContainedPath $context.GameRoot ([string]$entry.destination)
+            $existed = Test-Path -LiteralPath $destination -PathType Leaf
+            $snapshotPath = Resolve-ContainedPath $snapshotRoot ([string]$entry.destination)
+            if ($existed) {
+                Copy-FileWithParent $destination $snapshotPath
+            }
+            $snapshot += [pscustomobject]@{
+                destination = [string]$entry.destination
+                existed = $existed
+                snapshot = $snapshotPath
+            }
+        }
+        $stateFiles = @($state.files)
+        for ($index = $stateFiles.Count - 1; $index -ge 0; $index--) {
+            $entry = $stateFiles[$index]
+            $destination = Resolve-ContainedPath $context.GameRoot ([string]$entry.destination)
+            if ([bool]$entry.existed) {
+                $backup = Resolve-ContainedPath $context.BackupRoot ([string]$entry.destination)
+                Copy-FileWithParent $backup $destination
+            }
+            elseif (Test-Path -LiteralPath $destination -PathType Leaf) {
+                if ((Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash -eq [string]$entry.sha256) {
+                    Remove-Item -LiteralPath $destination -Force
+                }
+                else {
+                    Write-Host "Preserved modified file: $($entry.destination)" -ForegroundColor Yellow
+                }
+            }
+        }
+    }
+    catch {
+        $originalError = $_
+        try {
+            Restore-OpenAlSnapshot $context $snapshot
+        }
+        catch {
+            throw "$($originalError.Exception.Message) Rollback also failed: $($_.Exception.Message)"
+        }
+        throw $originalError
+    }
+    finally {
+        Remove-Item -LiteralPath $transactionRoot -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    Remove-Item -LiteralPath $context.StatePath -Force
+    Remove-Item -LiteralPath $context.BackupRoot -Recurse -Force
+}
+
+function Recover-OpenAlAddon {
+    $context = Get-OpenAlContext
+    if (Test-Path -LiteralPath $context.StatePath -PathType Leaf) {
+        $validState = $false
+        try {
+            [void](Read-OpenAlState $context -VerifyBackups)
+            $validState = $true
+        }
+        catch {
+            $validState = $false
+        }
+        if ($validState) {
+            throw 'A valid installation state exists. Use uninstall instead of recovery.'
+        }
+    }
+    if (-not (Test-Path -LiteralPath $context.BackupRoot -PathType Container)) {
+        throw 'No incomplete OpenAL installation backup was found.'
+    }
+
+    $transactionRoot = Join-Path $context.AddonRoot ('.openal-transaction-' + [guid]::NewGuid().ToString('N'))
+    $snapshotRoot = Join-Path $transactionRoot 'current'
+    [void](New-Item -ItemType Directory -Path $snapshotRoot -Force)
+    $snapshot = @()
+    try {
+        foreach ($file in @($context.Manifest.files)) {
+            $destination = Resolve-ContainedPath $context.GameRoot ([string]$file.destination)
+            $existed = Test-Path -LiteralPath $destination -PathType Leaf
+            $snapshotPath = Resolve-ContainedPath $snapshotRoot ([string]$file.destination)
+            if ($existed) {
+                Copy-FileWithParent $destination $snapshotPath
+            }
+            $snapshot += [pscustomobject]@{
+                destination = [string]$file.destination
+                existed = $existed
+                snapshot = $snapshotPath
+            }
+        }
+        foreach ($file in @($context.Manifest.files)) {
+            $destination = Resolve-ContainedPath $context.GameRoot ([string]$file.destination)
+            $backup = Resolve-ContainedPath $context.BackupRoot ([string]$file.destination)
+            if (Test-Path -LiteralPath $backup -PathType Leaf) {
+                Copy-FileWithParent $backup $destination
+            }
+            elseif ((Test-Path -LiteralPath $destination -PathType Leaf) -and
+                (Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash -eq [string]$file.sha256) {
+                Remove-Item -LiteralPath $destination -Force
+            }
+        }
+        Remove-Item -LiteralPath $context.StatePath -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $context.BackupRoot -Recurse -Force
+    }
+    catch {
+        $originalError = $_
+        try {
+            Restore-OpenAlSnapshot $context $snapshot
+        }
+        catch {
+            throw "$($originalError.Exception.Message) Rollback also failed: $($_.Exception.Message)"
+        }
+        throw $originalError
+    }
+    finally {
+        Remove-Item -LiteralPath $transactionRoot -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
+function Get-OpenAlAddonStatus {
+    try {
+        $root = Get-OpenAlRoot
+        if (-not (Test-Path -LiteralPath $root.ManifestPath -PathType Leaf)) {
+            $version = [Environment]::GetEnvironmentVariable('OpenAlAddonDownloadVersion')
+            if ([string]::IsNullOrWhiteSpace($version)) {
+                $version = 'unknown'
+            }
+            $status = if ((Test-Path -LiteralPath $root.StatePath) -or
+                (Test-Path -LiteralPath $root.BackupRoot)) { 'Payload missing' } else { 'Not downloaded' }
+            Write-Output "$status|$version"
+            return
+        }
+        $context = Get-OpenAlContext
+        if (-not (Test-Path -LiteralPath $context.StatePath -PathType Leaf)) {
+            if (Test-Path -LiteralPath $context.BackupRoot) {
+                Write-Output "Incomplete installation|$($context.Manifest.version)"
+            }
+            else {
+                Write-Output "Not installed|$($context.Manifest.version)"
+            }
+            return
+        }
+        $state = Read-OpenAlState $context
+        if ([string]$state.version -ne [string]$context.Manifest.version) {
+            Write-Output "Different version|$($state.version)"
+            return
+        }
+        foreach ($entry in @($state.files)) {
+            $destination = Resolve-ContainedPath $context.GameRoot ([string]$entry.destination)
+            if (-not (Test-Path -LiteralPath $destination -PathType Leaf) -or
+                (Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash -ne [string]$entry.sha256) {
+                Write-Output "Modified|$($context.Manifest.version)"
+                return
+            }
+        }
+        Write-Output "Installed|$($context.Manifest.version)"
+    }
+    catch {
+        if ($null -ne $root -and (Test-Path -LiteralPath $root.BackupRoot -PathType Container)) {
+            $version = [Environment]::GetEnvironmentVariable('OpenAlAddonDownloadVersion')
+            try {
+                if (Test-Path -LiteralPath $root.ManifestPath -PathType Leaf) {
+                    $version = [string](Get-Content -LiteralPath $root.ManifestPath -Raw | ConvertFrom-Json).version
+                }
+            }
+            catch {
+            }
+            if ([string]::IsNullOrWhiteSpace($version)) {
+                $version = 'unknown'
+            }
+            Write-Output "Incomplete installation|$version"
+        }
+        else {
+            Write-Output 'Unavailable|unknown'
+        }
+    }
+}
+
+function Open-AudioConfigurator {
+    $context = Get-OpenAlContext
+    [void](Read-OpenAlState $context -RequireCurrentManifest)
+    $executable = Resolve-ContainedPath $context.GameRoot 'mikohime\alsoft-config\alsoft-config.exe'
+    if (-not (Test-Path -LiteralPath $executable -PathType Leaf)) {
+        throw 'The OpenAL Soft configuration utility is not installed.'
+    }
+    $startInfo = [Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = $executable
+    $startInfo.WorkingDirectory = Split-Path -Parent $executable
+    $startInfo.UseShellExecute = $true
+    [Diagnostics.Process]::Start($startInfo) | Out-Null
+}
+
 function Render-Profile {
     $profile = Get-RequiredEnvironmentValue 'JVM_PROFILE_PATH'
     $output = Get-RequiredEnvironmentValue 'JVM_PROFILE_OUTPUT'
@@ -457,6 +1061,9 @@ try {
             $memory = [int64](Get-RequiredEnvironmentValue 'HELPER_MEMORY_MIB')
             Write-Output "$([int64][Math]::Ceiling($memory / 1024.0))|$([int64][Math]::Floor($memory * 0.75))"
         }
+        'GetOpenAlAddonStatus' {
+            Get-OpenAlAddonStatus
+        }
         'GetPrepatcherVersion' {
             $minimum = [version](Get-RequiredEnvironmentValue 'HELPER_MINIMUM_VERSION')
             $path = Get-RequiredEnvironmentValue 'HELPER_METADATA_PATH'
@@ -490,6 +1097,9 @@ try {
         'InstallJdk' {
             Install-Jdk
         }
+        'InstallOpenAlAddon' {
+            Install-OpenAlAddon
+        }
         'InstallResourceCache' {
             Install-ResourceCache
         }
@@ -513,6 +1123,12 @@ try {
             $startInfo.UseShellExecute = $true
             [Diagnostics.Process]::Start($startInfo) | Out-Null
         }
+        'OpenAudioConfigurator' {
+            Open-AudioConfigurator
+        }
+        'RecoverOpenAlAddon' {
+            Recover-OpenAlAddon
+        }
         'RemoveDirectory' {
             $path = [IO.Path]::GetFullPath((Get-RequiredEnvironmentValue 'HELPER_REMOVE_PATH'))
             $root = [IO.Path]::GetFullPath((Get-Location).Path) + [IO.Path]::DirectorySeparatorChar
@@ -531,6 +1147,9 @@ try {
             if ($text.IndexOfAny([char[]](33, 34, 37, 38, 40, 41, 60, 62, 94, 124)) -ge 0) {
                 Write-Output 'Yes'
             }
+        }
+        'UninstallOpenAlAddon' {
+            Uninstall-OpenAlAddon
         }
         'ValidateArgs' {
             Validate-Args

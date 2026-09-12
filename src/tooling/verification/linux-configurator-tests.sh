@@ -66,6 +66,7 @@ make_root() {
     printf 'placeholder\n' > "$d/mikohime/miko_jxp.properties"
     printf 'placeholder\n' > "$d/mikohime/mikohime.properties"
     for b in default pather mimikko gamma; do printf 'JPEG-%s\n' "$b" > "$d/mikohime/bg/${b}_bg.jpg"; done
+    printf 'JPEG-toadsector\n' > "$d/mikohime/bg/toadsector.jpg"
     printf 'JPEG-current\n' > "$d/mikohime/launcher_bg.jpg"
     for n in liblwjgl64.so libopenal64.so libjinput-linux64.so; do printf 'SO\n' > "$d/mikohime/linux/$n"; done
     printf '#!/usr/bin/env bash\necho starsector\n' > "$d/starsector.sh"
@@ -312,9 +313,9 @@ assert_exec "$root/Miko_Rouge.sh" "launcher executable under spaced path"
 section "Background selection in transaction"
 root="$WORK/background"
 make_root "$root"
-run_gen "$root" MIKO_JAVA="$root/fakejava/java28" MIKO_HEAP_MIB=4096 MIKO_BACKGROUND=gamma
-assert_true "[[ \"\$(cat '$root/mikohime/launcher_bg.jpg')\" == 'JPEG-gamma' ]]" "selected background committed"
-assert_have "$root/Miko_Info.txt" 'Launcher background: Gamma' "info records background selection"
+run_gen "$root" MIKO_JAVA="$root/fakejava/java28" MIKO_HEAP_MIB=4096 MIKO_BACKGROUND=toadsector
+assert_true "[[ \"\$(cat '$root/mikohime/launcher_bg.jpg')\" == 'JPEG-toadsector' ]]" "Toadsector background committed"
+assert_have "$root/Miko_Info.txt" 'Launcher background: Toadsector' "info records Toadsector background selection"
 
 # --- Native Linux flat layout and CRLF input handling ------------------------
 section "Flat Linux layout"

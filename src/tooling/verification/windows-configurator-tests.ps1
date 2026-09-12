@@ -62,13 +62,84 @@ try {
     Assert-True ($mainCmd.Contains('call "!UiModule!" ChooseComponentDownload')) 'component manager opens the selection page'
     Assert-True ($uiCmd.Contains(':ChooseComponentDownload')) 'component download selection action exists'
     Assert-True ($mainCmd.Contains('echo 3. Advanced setup ^(all options^)')) 'main menu names option 3 Advanced setup'
+    Assert-True (-not $mainCmd.Contains('View detected system details')) 'main menu omits redundant system-details option'
+    Assert-True ($mainCmd.Contains('choice /c 123456H /n /m "Select an option: "')) 'main menu choices match the shortened menu'
+    foreach ($label in @('Java                  :', 'Memory                :', 'Processor             :', 'Optional enhancements :')) {
+        Assert-True ($mainCmd.Contains($label)) "main status label is aligned: $label"
+    }
+    foreach ($label in @('Detected physical CPU cores  :', 'Available logical processors :', 'Recommended low-core tuning  :')) {
+        Assert-True ($uiCmd.Contains($label)) "CPU menu label is aligned: $label"
+    }
+    foreach ($label in @('Detected system memory        :', 'Recommended for this computer :')) {
+        Assert-True ($mainCmd.Contains($label)) "memory menu label is aligned: $label"
+    }
+    foreach ($label in @(
+        'Java              :'
+        'Game memory       :'
+        'Fast Rendering    :'
+        'FR Resource Cache :'
+        'Prepatcher        :'
+        'Limited-CPU mode  :'
+        'Large Pages       :'
+        'Troubleshooting   :'
+    )) {
+        Assert-True ($mainCmd.Contains($label)) "basic review label is aligned: $label"
+    }
+    Assert-True ($mainCmd.Contains('Java 27 or 28     :')) 'component manager Java label aligns with component rows'
+    $generationCmd = [IO.File]::ReadAllText((Join-Path $cmdSource 'Configurator.Generation.cmd'))
+    foreach ($label in @(
+        'Memory allocation    :'
+        'Java installation    :'
+        'VM tuning            :'
+        'Compact headers      :'
+        'CPU management       :'
+        'Physical CPU cores   :'
+        'Logical processors   :'
+        'CPU instructions     :'
+        'Large Pages          :'
+        'Logging              :'
+        'Launcher background  :'
+        'Fast Rendering       :'
+        'FR Resource Cache    :'
+        'StarsectorPrepatcher :'
+    )) {
+        Assert-True ($generationCmd.Contains($label)) "advanced review label is aligned: $label"
+    }
+    Assert-True ($mainCmd.Contains('call :OfferRecommendedResourceCache')) 'recommended setup checks for missing FR Resource Cache'
+    Assert-True ($mainCmd.Contains('if /I not "!FastRenderingAvailable!"=="Yes" exit /b 0')) 'recommended cache offer requires Fast Rendering'
+    Assert-True ($mainCmd.Contains('if /I "!ResourceCacheAvailable!"=="Yes" exit /b 0')) 'recommended cache offer skips an existing installation'
+    Assert-True ($mainCmd.Contains('choice /c YN /n /m "Download, install, and enable FR Resource Cache? [Y/N] "')) 'recommended cache download requires consent'
+    Assert-True ($mainCmd.Contains('call "!UiModule!" DownloadLatestResourceCache')) 'recommended setup uses the verified cache downloader'
+    Assert-True ($mainCmd.Contains("call `"!EnvironmentModule!`" RefreshEnvironment`r`ncall :EnableRecommendedEnhancements")) 'recommended setup redetects and enables installed enhancements'
+    Assert-True ($mainCmd.Contains('will continue with Fast Rendering enabled and Resource Cache disabled')) 'recommended setup continues safely after download failure'
     Assert-True ("$mainCmd`n$uiCmd" -notmatch '(?im)^echo B\..*(?:main menu)') 'main-menu returns do not use B'
     Assert-True ($uiCmd.Contains('echo X. Back to the main menu')) 'background menu uses X to return to main'
     Assert-True ($uiCmd.Contains('-Action OpenUrl')) 'download pages use the URL-opening helper'
     Assert-True ($uiCmd -notmatch '(?im)^\s*start\s+""') 'download pages do not inspect stale START status'
-    foreach ($label in @('Fast Rendering    :', 'FR Resource Cache :', 'Prepatcher        :', 'VRAM Optimizer    :')) {
+    Assert-True ($uiCmd.Contains('echo 5. Toadsector')) 'background menu includes Toadsector'
+    Assert-True ($uiCmd.Contains('call :CopyBackground "mikohime\bg\toadsector.jpg" "Toadsector"')) 'background menu installs Toadsector'
+    Assert-True ($mainCmd.Contains('if /I "!MIKO_BACKGROUND!"=="toadsector"')) 'non-interactive mode supports Toadsector'
+    $toadsectorBackground = Join-Path $repoRoot 'distribution\shared\resources\bg\toadsector.jpg'
+    Assert-True (Test-Path -LiteralPath $toadsectorBackground -PathType Leaf) 'Toadsector background is packaged'
+    Assert-True ((Get-FileHash -LiteralPath $toadsectorBackground -Algorithm SHA256).Hash -eq '8674FE23355ECAE0E5A3568A3C0461E9F8CA1902BD0669E379CE6E90105E4C09') 'Toadsector background matches the supplied image'
+    Assert-True ($mainCmd.Contains('echo A. Manage OpenAL Soft audio add-on')) 'component manager exposes OpenAL management'
+    Assert-True ($uiCmd.Contains(':ManageOpenAlAddon')) 'OpenAL management menu exists'
+    Assert-True ($uiCmd.Contains('Playback ^> Sample Format       : 32-bit float')) 'OpenAL utility screen recommends 32-bit float playback'
+    Assert-True ($uiCmd.Contains('Playback ^> Resampler Quality   : Maximum quality')) 'OpenAL utility screen recommends maximum resampler quality'
+    Assert-True ($uiCmd.Contains('HRTF ^> HRTF Render Method      : Maximum quality')) 'OpenAL utility screen recommends maximum HRTF quality'
+    foreach ($label in @('Fast Rendering    :', 'FR Resource Cache :', 'Prepatcher        :', 'VRAM Optimizer    :', 'OpenAL Soft       :')) {
         Assert-True ($uiCmd.Contains($label)) "optional component label is aligned: $label"
     }
+
+    $components = [IO.File]::ReadAllText((Join-Path $repoRoot 'configurator\shared\components.properties'))
+    Assert-True ($components.Contains('OpenAlAddonDownloadUrl=https://github.com/GaiusCassiusL/Starsector_Mikohime-OpenAL-Addon/releases/download/')) 'OpenAL download uses the pinned GitHub release'
+    Assert-True ($components.Contains('OpenAlAddonDownloadSha256=FEDD0546B0D5E7E86F65BE496CA27FF072E25D57C6436E8DA4357BE785C9977F')) 'OpenAL download pins the release checksum'
+    Assert-True ($uiCmd.Contains('The 17 MB add-on will be downloaded from GitHub before installation.')) 'OpenAL menu discloses the optional download'
+    $helperText = [IO.File]::ReadAllText($helper)
+    Assert-True ($helperText.Contains('function Download-OpenAlAddon')) 'OpenAL helper supports on-demand download'
+    Assert-True ($helperText.Contains('The OpenAL add-on archive contains an unexpected file set.')) 'OpenAL download rejects unexpected archive entries'
+    Assert-True ($helperText.Contains('Download-OpenAlAddon')) 'OpenAL installation downloads a missing payload'
+    Assert-True ($helperText.Contains('Download-OpenAlAddon -Force')) 'OpenAL repair redownloads an invalid cached payload'
 
     $unsafeInput = Join-Path $work 'input.txt'
     [IO.File]::WriteAllText($unsafeInput, 'unsafe&name')
@@ -132,6 +203,101 @@ try {
     $env:UPDATE_TEST_AVAILABLE = 'No'
     Assert-True ((Invoke-Helper CompareVersions) -eq 'Not installed (latest v1.0.40)') 'missing component reports latest release'
 
+    $openAlGame = Join-Path $work 'openal-game'
+    $openAlAddon = Join-Path $openAlGame 'mikohime\openal'
+    $openAlPayload = Join-Path $openAlAddon 'payload'
+    New-Item -ItemType Directory -Path @(
+        (Join-Path $openAlPayload 'root')
+        (Join-Path $openAlPayload 'win')
+        (Join-Path $openAlGame 'mikohime\windows')
+    ) -Force | Out-Null
+    $openAlScriptSource = Join-Path $openAlPayload 'root\Configure_Audio.bat'
+    $openAlDllSource = Join-Path $openAlPayload 'win\OpenAL32.dll'
+    $openAlDllDestination = Join-Path $openAlGame 'mikohime\windows\OpenAL32.dll'
+    [IO.File]::WriteAllText($openAlScriptSource, 'packaged script')
+    [IO.File]::WriteAllText($openAlDllSource, 'OpenAL replacement')
+    [IO.File]::WriteAllText($openAlDllDestination, 'original OpenAL')
+    $openAlManifest = [ordered]@{
+        name = 'OpenAL test payload'
+        version = '1.25.1'
+        files = @(
+            [ordered]@{
+                source = 'root/Configure_Audio.bat'
+                destination = 'Configure_Audio.bat'
+                sha256 = (Get-FileHash -LiteralPath $openAlScriptSource -Algorithm SHA256).Hash
+            }
+            [ordered]@{
+                source = 'win/OpenAL32.dll'
+                destination = 'mikohime/windows/OpenAL32.dll'
+                sha256 = (Get-FileHash -LiteralPath $openAlDllSource -Algorithm SHA256).Hash
+            }
+        )
+    }
+    [IO.File]::WriteAllText(
+        (Join-Path $openAlAddon 'addon-manifest.json'),
+        ($openAlManifest | ConvertTo-Json -Depth 5),
+        [Text.UTF8Encoding]::new($false)
+    )
+    $env:OPENAL_ADDON_ROOT = $openAlAddon
+    Push-Location $openAlGame
+    try {
+        Assert-True ((Invoke-Helper GetOpenAlAddonStatus) -eq 'Not installed|1.25.1') 'OpenAL reports not installed before deployment'
+        Invoke-Helper InstallOpenAlAddon | Out-Null
+        Assert-True ((Invoke-Helper GetOpenAlAddonStatus) -eq 'Installed|1.25.1') 'OpenAL reports installed after deployment'
+        Assert-True ([IO.File]::ReadAllText($openAlDllDestination) -eq 'OpenAL replacement') 'OpenAL installation replaces the DLL'
+        $openAlBackup = Join-Path $openAlAddon 'DLLBK\mikohime\windows\OpenAL32.dll'
+        Assert-True ([IO.File]::ReadAllText($openAlBackup) -eq 'original OpenAL') 'OpenAL installation backs up the original DLL'
+        $backupHash = (Get-FileHash -LiteralPath $openAlBackup -Algorithm SHA256).Hash
+        [IO.File]::WriteAllText($openAlDllDestination, 'locally modified')
+        Assert-True ((Invoke-Helper GetOpenAlAddonStatus) -eq 'Modified|1.25.1') 'OpenAL detects modified installed files'
+        Invoke-Helper InstallOpenAlAddon | Out-Null
+        Assert-True ((Get-FileHash -LiteralPath $openAlBackup -Algorithm SHA256).Hash -eq $backupHash) 'OpenAL repair preserves the first original backup'
+        Assert-True ([IO.File]::ReadAllText($openAlDllDestination) -eq 'OpenAL replacement') 'OpenAL repair reapplies the payload'
+        Invoke-Helper UninstallOpenAlAddon | Out-Null
+        Assert-True ([IO.File]::ReadAllText($openAlDllDestination) -eq 'original OpenAL') 'OpenAL uninstall restores the original DLL'
+        Assert-True (-not (Test-Path -LiteralPath (Join-Path $openAlGame 'Configure_Audio.bat'))) 'OpenAL uninstall removes files created by the add-on'
+        Assert-True (Test-Path -LiteralPath $openAlDllSource) 'OpenAL uninstall preserves the packaged payload'
+        Assert-True ((Invoke-Helper GetOpenAlAddonStatus) -eq 'Not installed|1.25.1') 'OpenAL reports not installed after restoration'
+        Invoke-Helper InstallOpenAlAddon | Out-Null
+        Remove-Item -LiteralPath (Join-Path $openAlAddon 'install-state.json') -Force
+        Assert-True ((Invoke-Helper GetOpenAlAddonStatus) -eq 'Incomplete installation|1.25.1') 'OpenAL detects an orphaned backup'
+        Invoke-Helper RecoverOpenAlAddon | Out-Null
+        Assert-True ([IO.File]::ReadAllText($openAlDllDestination) -eq 'original OpenAL') 'OpenAL recovery restores available originals'
+        Assert-True (-not (Test-Path -LiteralPath (Join-Path $openAlGame 'Configure_Audio.bat'))) 'OpenAL recovery removes unchanged created files'
+        Assert-True ((Invoke-Helper GetOpenAlAddonStatus) -eq 'Not installed|1.25.1') 'OpenAL reports not installed after recovery'
+        Invoke-Helper InstallOpenAlAddon | Out-Null
+        [IO.File]::WriteAllText((Join-Path $openAlAddon 'install-state.json'), '{ invalid state')
+        Assert-True ((Invoke-Helper GetOpenAlAddonStatus) -eq 'Incomplete installation|1.25.1') 'OpenAL treats corrupt state with backups as incomplete'
+        Invoke-Helper RecoverOpenAlAddon | Out-Null
+        Assert-True ([IO.File]::ReadAllText($openAlDllDestination) -eq 'original OpenAL') 'OpenAL recovery restores originals when state is corrupt'
+        Assert-True (-not (Test-Path -LiteralPath (Join-Path $openAlAddon 'install-state.json'))) 'OpenAL recovery removes corrupt state'
+        Invoke-Helper InstallOpenAlAddon | Out-Null
+        $openAlManifest.version = '1.25.2'
+        [IO.File]::WriteAllText(
+            (Join-Path $openAlAddon 'addon-manifest.json'),
+            ($openAlManifest | ConvertTo-Json -Depth 5),
+            [Text.UTF8Encoding]::new($false)
+        )
+        Assert-True ((Invoke-Helper GetOpenAlAddonStatus) -eq 'Different version|1.25.1') 'OpenAL detects an installation from a different payload version'
+        Invoke-Helper UninstallOpenAlAddon | Out-Null
+        Assert-True ([IO.File]::ReadAllText($openAlDllDestination) -eq 'original OpenAL') 'OpenAL uninstalls a recorded older payload version'
+        $openAlManifest.version = '1.25.1'
+        [IO.File]::WriteAllText(
+            (Join-Path $openAlAddon 'addon-manifest.json'),
+            ($openAlManifest | ConvertTo-Json -Depth 5),
+            [Text.UTF8Encoding]::new($false)
+        )
+        Invoke-Helper InstallOpenAlAddon | Out-Null
+        [IO.File]::WriteAllText((Join-Path $openAlGame 'Configure_Audio.bat'), 'user replacement')
+        Invoke-Helper UninstallOpenAlAddon | Out-Null
+        Assert-True ([IO.File]::ReadAllText((Join-Path $openAlGame 'Configure_Audio.bat')) -eq 'user replacement') 'OpenAL uninstall preserves modified files it did not replace originally'
+        Remove-Item -LiteralPath (Join-Path $openAlGame 'Configure_Audio.bat') -Force
+    }
+    finally {
+        Pop-Location
+        Remove-Item Env:OPENAL_ADDON_ROOT -ErrorAction SilentlyContinue
+    }
+
     $fixture = Join-Path $work 'game'
     New-Item -ItemType Directory -Path @(
         $fixture
@@ -154,6 +320,7 @@ try {
         }
     Copy-Item -LiteralPath (Join-Path $repoRoot 'distribution\windows\configuration\DefaultPath') -Destination (Join-Path $fixture 'mikohime\DefaultPath')
     [IO.File]::WriteAllText((Join-Path $fixture 'mikohime\bg\gamma_bg.jpg'), 'GAMMA')
+    [IO.File]::WriteAllText((Join-Path $fixture 'mikohime\bg\toadsector.jpg'), 'TOADSECTOR')
 
     foreach ($major in 17, 27, 28) {
         $javaFolder = "jdk-test-$major"
@@ -164,7 +331,7 @@ try {
         $env:MIKO_JAVA_VERSION = "$major"
         $env:MIKO_HEAP_MIB = '8192'
         $env:MIKO_LOGGING = if ($major -eq 28) { 'Minimal' } else { 'Full' }
-        $env:MIKO_BACKGROUND = if ($major -eq 28) { 'gamma' } else { '' }
+        $env:MIKO_BACKGROUND = if ($major -eq 28) { 'toadsector' } else { '' }
         Push-Location $fixture
         try {
             $runOutput = (& cmd.exe /d /c 'call .\Configure_Me.cmd --non-interactive' 2>&1 | Out-String).Trim()
@@ -182,7 +349,7 @@ try {
             Assert-True ($generated -contains '-Xlog:async') 'Java 28 keeps asynchronous logging enabled'
             Assert-True ($generated -contains '#-DAsyncLogger.WaitStrategy=busyspin') 'Java 28 keeps busy-spin disabled'
             Assert-True ($generated -contains '-XX:CompilerDirectivesFile=..\\mikohime/.rouge_owo') 'Java 28 compiler directives resolve'
-            Assert-True ((Get-Content -LiteralPath (Join-Path $fixture 'mikohime\launcher_bg.jpg') -Raw) -eq 'GAMMA') 'background is committed with configuration'
+            Assert-True ((Get-Content -LiteralPath (Join-Path $fixture 'mikohime\launcher_bg.jpg') -Raw) -eq 'TOADSECTOR') 'Toadsector background is committed with configuration'
         }
     }
 
@@ -223,5 +390,6 @@ finally {
     Remove-Item Env:UPDATE_TEST_AVAILABLE -ErrorAction SilentlyContinue
     Remove-Item Env:UPDATE_TEST_INSTALLED -ErrorAction SilentlyContinue
     Remove-Item Env:UPDATE_TEST_LATEST -ErrorAction SilentlyContinue
+    Remove-Item Env:OPENAL_ADDON_ROOT -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
 }
