@@ -24,8 +24,12 @@ local or system Java installation.
    `Program Files (x86)`, right-click it and select **Run as administrator**.
 3. Select a Java version and the desired memory, CPU, logging, rendering, cache, and
    Prepatcher options.
-4. Launch with `Miko_Rouge.bat`. If Starsector is under `Program Files` or
-   `Program Files (x86)`, right-click it and select **Run as administrator**.
+4. Launch with `Miko_Rouge.bat`, or use `Miko_Silent.bat` to launch without a
+   terminal window. If Starsector is under `Program Files` or
+   `Program Files (x86)`, right-click the selected launcher and choose
+   **Run as administrator**.
+5. To use a custom launcher background, place a `.jpg` image in
+   `mikohime\bg` and select **Custom JPG** from **Change launcher background**.
 
 If an automatic Java download fails, the configurator displays the trusted
 Adoptium URL and can open it in your browser for manual installation.
@@ -56,7 +60,9 @@ automation fixtures. `MIKO_HEAP_MIB`, `MIKO_FAST_RENDERING`, `MIKO_RESOURCE_CACH
 `MIKO_PREPATCHER`, `MIKO_LOW_CORE`, `MIKO_OLD_CPU`, `MIKO_LARGE_PAGES`,
 `MIKO_LOGGING`, and `MIKO_BACKGROUND` override the corresponding defaults.
 Supported background values include `default`, `pather`, `mimikko`,
-`gamma`, and `toadsector`.
+`gamma`, `toadsector`, and `custom:<jpg-filename>` for a JPG in `mikohime\bg`.
+For Windows non-interactive runs, custom filenames may contain only letters,
+numbers, spaces, periods, underscores, and hyphens.
 
 ### Linux
 
@@ -65,6 +71,8 @@ Supported background values include `default`, `pather`, `mimikko`,
 2. Open a terminal in the Starsector installation directory and run
    `./Configure_Me.sh`.
 3. Launch the generated `Miko_Rouge.sh`.
+4. To use a custom launcher background, place a `.jpg` image in
+   `mikohime/bg` and select **Custom JPG** from **Change launcher background**.
 
 The Linux configurator offers a guided menu and a seven-step flow with
 back/cancel like the Windows configurator. It detects Java 17/27/28 installations, memory,
@@ -88,6 +96,9 @@ Non-interactive runs are deterministic through `MIKO_*` environment variables
 ```bash
 MIKO_JAVA=jdk-28+13/bin/java MIKO_HEAP_MIB=8192 ./Configure_Me.sh --non-interactive
 ```
+
+Use `MIKO_BACKGROUND=custom:<jpg-filename>` to select a custom JPG from
+`mikohime/bg` in a non-interactive run.
 
 Linux uses Starsector's native flat installation layout. Do not create a
 `starsector-core` directory. To use Fast Rendering, download the

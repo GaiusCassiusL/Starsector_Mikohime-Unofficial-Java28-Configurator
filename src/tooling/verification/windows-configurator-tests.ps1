@@ -117,8 +117,12 @@ try {
     Assert-True ($uiCmd.Contains('-Action OpenUrl')) 'download pages use the URL-opening helper'
     Assert-True ($uiCmd -notmatch '(?im)^\s*start\s+""') 'download pages do not inspect stale START status'
     Assert-True ($uiCmd.Contains('echo 5. Toadsector')) 'background menu includes Toadsector'
+    Assert-True ($uiCmd.Contains('echo 6. Custom JPG from mikohime\bg')) 'background menu includes custom JPG selection'
+    Assert-True ($uiCmd.Contains('-Action SelectCustomBackground')) 'custom background selection uses the safe file picker'
+    Assert-True ($uiCmd.Contains('if errorlevel 2 goto :BackgroundMenu')) 'custom background cancellation returns to the background menu'
     Assert-True ($uiCmd.Contains('call :CopyBackground "mikohime\bg\toadsector.jpg" "Toadsector"')) 'background menu installs Toadsector'
     Assert-True ($mainCmd.Contains('if /I "!MIKO_BACKGROUND!"=="toadsector"')) 'non-interactive mode supports Toadsector'
+    Assert-True ($mainCmd.Contains('if /I "!MIKO_BACKGROUND:~0,7!"=="custom:"')) 'non-interactive mode supports custom JPG backgrounds'
     $toadsectorBackground = Join-Path $repoRoot 'distribution\shared\resources\bg\toadsector.jpg'
     Assert-True (Test-Path -LiteralPath $toadsectorBackground -PathType Leaf) 'Toadsector background is packaged'
     Assert-True ((Get-FileHash -LiteralPath $toadsectorBackground -Algorithm SHA256).Hash -eq '8674FE23355ECAE0E5A3568A3C0461E9F8CA1902BD0669E379CE6E90105E4C09') 'Toadsector background matches the supplied image'
@@ -136,6 +140,8 @@ try {
     Assert-True ($components.Contains('OpenAlAddonDownloadSha256=FEDD0546B0D5E7E86F65BE496CA27FF072E25D57C6436E8DA4357BE785C9977F')) 'OpenAL download pins the release checksum'
     Assert-True ($uiCmd.Contains('The 17 MB add-on will be downloaded from GitHub before installation.')) 'OpenAL menu discloses the optional download'
     $helperText = [IO.File]::ReadAllText($helper)
+    Assert-True ($helperText.Contains('Enter the number of the background to install, or B to return to the background menu:')) 'custom background picker explains number selection and back option'
+    Assert-True ($helperText.Contains('Returning to the launcher background menu.')) 'custom background picker confirms when it returns to the menu'
     Assert-True ($helperText.Contains('function Download-OpenAlAddon')) 'OpenAL helper supports on-demand download'
     Assert-True ($helperText.Contains('The OpenAL add-on archive contains an unexpected file set.')) 'OpenAL download rejects unexpected archive entries'
     Assert-True ($helperText.Contains('Download-OpenAlAddon')) 'OpenAL installation downloads a missing payload'
@@ -147,6 +153,24 @@ try {
     Assert-True ((Invoke-Helper TestUnsafeInput) -eq 'Yes') 'unsafe CMD input is rejected'
     [IO.File]::WriteAllText($unsafeInput, 'jdk-28+13Miko')
     Assert-True ($null -eq (Invoke-Helper TestUnsafeInput)) 'safe CMD input is accepted'
+
+    $customBackgroundRoot = Join-Path $work 'custom-backgrounds'
+    $customBackgroundTarget = Join-Path $work 'selected-background.jpg'
+    New-Item -ItemType Directory -Path $customBackgroundRoot | Out-Null
+    [IO.File]::WriteAllText((Join-Path $customBackgroundRoot 'custom image.JPG'), 'CUSTOM JPG')
+    [IO.File]::WriteAllText((Join-Path $customBackgroundRoot 'custom & image.jpg'), 'SPECIAL NAME')
+    [IO.File]::WriteAllText((Join-Path $customBackgroundRoot 'not-a-background.png'), 'PNG')
+    [IO.File]::WriteAllText((Join-Path $customBackgroundRoot 'default_bg.jpg'), 'BUILT-IN')
+    $env:HELPER_BACKGROUND_DIRECTORY = $customBackgroundRoot
+    $customBackgroundNames = @(Invoke-Helper GetCustomBackgrounds)
+    Assert-True ($customBackgroundNames -contains 'custom image.JPG') 'custom background discovery accepts JPG case-insensitively'
+    Assert-True ($customBackgroundNames -contains 'custom & image.jpg') 'custom background discovery preserves special filenames'
+    Assert-True ($customBackgroundNames -notcontains 'not-a-background.png') 'custom background discovery excludes non-JPG files'
+    Assert-True ($customBackgroundNames -notcontains 'default_bg.jpg') 'custom background discovery avoids duplicate built-in choices'
+    $env:HELPER_BACKGROUND_NAME = 'custom & image.jpg'
+    $env:HELPER_BACKGROUND_TARGET = $customBackgroundTarget
+    Invoke-Helper CopyCustomBackground | Out-Null
+    Assert-True ([IO.File]::ReadAllText($customBackgroundTarget) -eq 'SPECIAL NAME') 'custom background copy handles special filenames'
 
     foreach ($major in 17, 27, 28) {
         $rendered = Join-Path $work "java-$major.rendered.args"
@@ -327,6 +351,7 @@ try {
         $javaBin = Join-Path $fixture "$javaFolder\bin"
         New-Item -ItemType Directory -Path $javaBin -Force | Out-Null
         New-Item -ItemType File -Path (Join-Path $javaBin 'java.exe') -Force | Out-Null
+        New-Item -ItemType File -Path (Join-Path $javaBin 'javaw.exe') -Force | Out-Null
         $env:MIKO_JAVA = $javaFolder
         $env:MIKO_JAVA_VERSION = "$major"
         $env:MIKO_HEAP_MIB = '8192'
@@ -345,6 +370,11 @@ try {
         Assert-True ($generated -contains '-Xms8192m') "Java $major generated minimum heap"
         Assert-True ($generated -contains '-Xmx8192m') "Java $major generated maximum heap"
         Assert-True ($generated -contains 'com.fs.starfarer.StarfarerLauncher') "Java $major generated launcher class"
+        $silentLauncherPath = Join-Path $fixture 'Miko_Silent.bat'
+        Assert-True (Test-Path -LiteralPath $silentLauncherPath) "Java $major generated silent launcher"
+        $silentLauncher = [IO.File]::ReadAllText($silentLauncherPath)
+        Assert-True ($silentLauncher.Contains("start """" ""..\$javaFolder\bin\javaw.exe"" @..\Miko_Simple.txt")) "Java $major silent launcher uses its selected javaw and generated arguments"
+        Assert-True ($silentLauncher.Contains("exit /b")) "Java $major silent launcher exits after starting the game"
         if ($major -eq 28) {
             Assert-True ($generated -contains '-Xlog:async') 'Java 28 keeps asynchronous logging enabled'
             Assert-True ($generated -contains '#-DAsyncLogger.WaitStrategy=busyspin') 'Java 28 keeps busy-spin disabled'
@@ -352,6 +382,23 @@ try {
             Assert-True ((Get-Content -LiteralPath (Join-Path $fixture 'mikohime\launcher_bg.jpg') -Raw) -eq 'TOADSECTOR') 'Toadsector background is committed with configuration'
         }
     }
+
+    [IO.File]::WriteAllText((Join-Path $fixture 'mikohime\bg\Community background.JPG'), 'CUSTOM BACKGROUND')
+    $env:MIKO_JAVA = 'jdk-test-28'
+    $env:MIKO_JAVA_VERSION = '28'
+    $env:MIKO_HEAP_MIB = '8192'
+    $env:MIKO_BACKGROUND = 'custom:Community background.JPG'
+    Push-Location $fixture
+    try {
+        $customBackgroundOutput = (& cmd.exe /d /c 'call .\Configure_Me.cmd --non-interactive' 2>&1 | Out-String).Trim()
+        $customBackgroundExit = $LASTEXITCODE
+    }
+    finally {
+        Pop-Location
+    }
+    Assert-True ($customBackgroundExit -eq 0) "custom JPG background generation succeeds ($customBackgroundOutput)"
+    Assert-True ([IO.File]::ReadAllText((Join-Path $fixture 'mikohime\launcher_bg.jpg')) -eq 'CUSTOM BACKGROUND') 'non-interactive configuration installs a custom JPG background'
+    Assert-True ((Get-Content -LiteralPath (Join-Path $fixture 'Miko_Info.txt') -Raw).Contains('Custom (Community background.JPG)')) 'configuration summary records the custom background'
 
     New-Item -ItemType Directory -Path (Join-Path $fixture '.configure_me.lock') | Out-Null
     Push-Location $fixture

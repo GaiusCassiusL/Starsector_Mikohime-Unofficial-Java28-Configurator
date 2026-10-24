@@ -1263,7 +1263,16 @@ resolve_background_noninteractive() {
         mimikko|Mimikko)       BACKGROUND_SOURCE="$BG_DIR/mimikko_bg.jpg"; BACKGROUND_LABEL="Mimikko" ;;
         gamma|Gamma)           BACKGROUND_SOURCE="$BG_DIR/gamma_bg.jpg";   BACKGROUND_LABEL="Gamma" ;;
         toadsector|Toadsector) BACKGROUND_SOURCE="$BG_DIR/toadsector.jpg"; BACKGROUND_LABEL="Toadsector" ;;
-        *) die "MIKO_BACKGROUND must be keep, default, mikosector, mimikko, gamma, or toadsector." ;;
+        custom:*|Custom:*|CUSTOM:*)
+            local custom_name="${MIKO_BACKGROUND#*:}"
+            [[ -n "$custom_name" && "$custom_name" != */* && "$custom_name" != *\\* ]] ||
+                die "Custom MIKO_BACKGROUND must be custom:<jpg-filename> from mikohime/bg."
+            [[ "${custom_name,,}" == *.jpg && -f "$BG_DIR/$custom_name" ]] ||
+                die "Custom background not found as a JPG in mikohime/bg: $custom_name"
+            BACKGROUND_SOURCE="$BG_DIR/$custom_name"
+            BACKGROUND_LABEL="Custom ($custom_name)"
+            ;;
+        *) die "MIKO_BACKGROUND must be keep, a built-in background name, or custom:<jpg-filename> from mikohime/bg." ;;
     esac
 }
 
@@ -1725,31 +1734,73 @@ choose_logging() {
 
 # --- Standalone background menu (atomic single-file commit) -----------------
 background_menu() {
-    printf '\nLauncher background\n'
-    printf -- '--------------------------------------------------------------------------\n'
-    printf '  1. Default Mikohime 25+\n  2. Mikosector\n  3. Mimikko\n  4. Gamma\n  5. Toadsector\n  B. Back\n'
-    prompt_line "Select an option: "
-    local src label
-    case "$REPLY_LINE" in
-        1) src="$BG_DIR/default_bg.jpg"; label="Default Mikohime 25+" ;;
-        2) src="$BG_DIR/pather_bg.jpg"; label="Mikosector" ;;
-        3) src="$BG_DIR/mimikko_bg.jpg"; label="Mimikko" ;;
-        4) src="$BG_DIR/gamma_bg.jpg"; label="Gamma" ;;
-        5) src="$BG_DIR/toadsector.jpg"; label="Toadsector" ;;
-        *) return 0 ;;
-    esac
-    [[ -f "$src" ]] || { warn "Background source is missing: $src"; return 0; }
-    local pending="$MIKOHIME_DIR/launcher_bg.jpg.${TRANSACTION_ID}.pending"
-    register_temp_file "$pending"
-    cp -- "$src" "$pending" || { warn "Failed to stage the background."; return 0; }
-    COMMIT_TARGETS=("$MIKOHIME_DIR/launcher_bg.jpg")
-    COMMIT_PENDINGS=("$pending")
-    if commit_files; then
-        printf '%sInstalled the %s background.%s\n' "${ColorGreen:-}" "$label" "${ColorReset:-}"
-    else
-        warn "Failed to install the $label background."
-    fi
-    return 0
+    local src label pending
+    while true; do
+        printf '\nLauncher background\n'
+        printf -- '--------------------------------------------------------------------------\n'
+        printf '  1. Default Mikohime 25+\n  2. Mikosector\n  3. Mimikko\n  4. Gamma\n  5. Toadsector\n  6. Custom JPG from mikohime/bg\n  B. Back to the main menu\n'
+        prompt_line "Select an option: "
+        case "$REPLY_LINE" in
+            1) src="$BG_DIR/default_bg.jpg"; label="Default Mikohime 25+" ;;
+            2) src="$BG_DIR/pather_bg.jpg"; label="Mikosector" ;;
+            3) src="$BG_DIR/mimikko_bg.jpg"; label="Mimikko" ;;
+            4) src="$BG_DIR/gamma_bg.jpg"; label="Gamma" ;;
+            5) src="$BG_DIR/toadsector.jpg"; label="Toadsector" ;;
+            6)
+                local -a custom_backgrounds=()
+                local candidate selected_index
+                while IFS= read -r -d '' candidate; do
+                    custom_backgrounds+=("$candidate")
+                done < <(
+                    find "$BG_DIR" -maxdepth 1 -type f -iname '*.jpg' \
+                        ! -iname 'default_bg.jpg' ! -iname 'pather_bg.jpg' \
+                        ! -iname 'mimikko_bg.jpg' ! -iname 'gamma_bg.jpg' \
+                        ! -iname 'toadsector.jpg' -print0 | sort -z
+                )
+                if ((${#custom_backgrounds[@]} == 0)); then
+                    warn "No custom JPG backgrounds found in mikohime/bg. Returning to the background menu."
+                    continue
+                fi
+                printf 'Custom JPG backgrounds:\n'
+                for selected_index in "${!custom_backgrounds[@]}"; do
+                    printf '  %d. %s\n' "$((selected_index + 1))" "${custom_backgrounds[$selected_index]##*/}"
+                done
+                while true; do
+                    prompt_line "Enter the number of the background to install, or B to return to the background menu: "
+                    if [[ "${REPLY_LINE,,}" == b ]]; then
+                        printf 'Returning to the launcher background menu.\n'
+                        continue 2
+                    fi
+                    if [[ ! "$REPLY_LINE" =~ ^[1-9][0-9]*$ ]]; then
+                        warn "Enter a listed number, or B to go back."
+                        continue
+                    fi
+                    selected_index=$((10#$REPLY_LINE - 1))
+                    if ((selected_index >= ${#custom_backgrounds[@]})); then
+                        warn "That number is not in the list. Try again, or enter B to go back."
+                        continue
+                    fi
+                    src="${custom_backgrounds[$selected_index]}"
+                    label="Custom (${src##*/})"
+                    break
+                done
+                ;;
+            [Bb]) return 0 ;;
+            *) return 0 ;;
+        esac
+        [[ -f "$src" ]] || { warn "Background source is missing: $src"; continue; }
+        pending="$MIKOHIME_DIR/launcher_bg.jpg.${TRANSACTION_ID}.pending"
+        register_temp_file "$pending"
+        cp -- "$src" "$pending" || { warn "Failed to stage the background."; return 0; }
+        COMMIT_TARGETS=("$MIKOHIME_DIR/launcher_bg.jpg")
+        COMMIT_PENDINGS=("$pending")
+        if commit_files; then
+            printf '%sInstalled the %s background.%s\n' "${ColorGreen:-}" "$label" "${ColorReset:-}"
+        else
+            warn "Failed to install the $label background."
+        fi
+        return 0
+    done
 }
 # -----------------------------------------------------------------------------
 # Guided configuration flow (7 steps with back/cancel)

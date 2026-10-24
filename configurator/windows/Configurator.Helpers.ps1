@@ -3,9 +3,11 @@ param(
     [ValidateSet(
         'CheckComponentUpdates',
         'CompareVersions',
+        'CopyCustomBackground',
         'DetectUnsafeNames',
         'DetectVramOptimizer',
         'GetJarVersion',
+        'GetCustomBackgrounds',
         'GetMemorySummary',
         'GetOpenAlAddonStatus',
         'GetPrepatcherVersion',
@@ -20,6 +22,8 @@ param(
         'RecoverOpenAlAddon',
         'RemoveDirectory',
         'RenderProfile',
+        'SelectCustomBackground',
+        'ValidateCustomBackgroundName',
         'TestUnsafeInput',
         'UninstallOpenAlAddon',
         'ValidateArgs'
@@ -47,6 +51,91 @@ function Get-SafeComponentDirectories {
         Get-ChildItem -LiteralPath $Root -Directory -Filter $pattern -ErrorAction SilentlyContinue |
             Where-Object { $_.Name.IndexOfAny($bad) -lt 0 }
     }
+}
+
+function Get-CustomBackgroundFiles {
+    param([string]$Root)
+
+    if (-not (Test-Path -LiteralPath $Root -PathType Container)) {
+        throw "Background directory was not found: $Root"
+    }
+    $builtInNames = @('default_bg.jpg', 'pather_bg.jpg', 'mimikko_bg.jpg', 'gamma_bg.jpg', 'toadsector.jpg')
+    return @(
+        Get-ChildItem -LiteralPath $Root -File |
+            Where-Object { $_.Extension -ieq '.jpg' -and $_.Name -notin $builtInNames } |
+            Sort-Object Name
+    )
+}
+
+function Copy-CustomBackground {
+    param([string]$Name, [string]$Root, [string]$Target)
+
+    if ([string]::IsNullOrWhiteSpace($Name) -or [IO.Path]::GetFileName($Name) -cne $Name -or
+        [IO.Path]::GetExtension($Name) -ine '.jpg') {
+        throw 'Select a JPG filename from mikohime\bg.'
+    }
+    $source = Get-CustomBackgroundFiles -Root $Root |
+        Where-Object { $_.Name -ceq $Name } |
+        Select-Object -First 1
+    if ($null -eq $source) {
+        throw "Custom JPG background was not found in mikohime\bg: $Name"
+    }
+
+    $targetPath = [IO.Path]::GetFullPath($Target)
+    $pendingPath = "$targetPath.$([guid]::NewGuid().ToString('N')).pending"
+    try {
+        Copy-Item -LiteralPath $source.FullName -Destination $pendingPath
+        Move-Item -LiteralPath $pendingPath -Destination $targetPath -Force
+    }
+    finally {
+        Remove-Item -LiteralPath $pendingPath -Force -ErrorAction SilentlyContinue
+    }
+    Write-Output "Installed custom background: $Name"
+}
+
+function Select-CustomBackground {
+    param([string]$Root, [string]$Target)
+
+    $backgrounds = @(Get-CustomBackgroundFiles -Root $Root)
+    if ($backgrounds.Count -eq 0) {
+        Write-Host 'No custom JPG backgrounds found in mikohime\bg.'
+        return $false
+    }
+    Write-Host 'Custom JPG backgrounds:'
+    for ($index = 0; $index -lt $backgrounds.Count; $index++) {
+        Write-Host ("  {0}. {1}" -f ($index + 1), $backgrounds[$index].Name)
+    }
+    while ($true) {
+        Write-Host -NoNewline 'Enter the number of the background to install, or B to return to the background menu: '
+        $selection = [Console]::In.ReadLine()
+        if ($selection -match '^[Bb]$') {
+            Write-Host 'Returning to the launcher background menu.'
+            return $false
+        }
+        if ($selection -notmatch '^[1-9][0-9]*$') {
+            Write-Host 'Enter a listed number, or B to go back.'
+            continue
+        }
+        $selectedIndex = [int]$selection - 1
+        if ($selectedIndex -ge $backgrounds.Count) {
+            Write-Host 'That number is not in the list. Try again, or enter B to go back.'
+            continue
+        }
+        Copy-CustomBackground -Name $backgrounds[$selectedIndex].Name -Root $Root -Target $Target
+        return $true
+    }
+}
+
+function Test-SafeCustomBackgroundName {
+    param([string]$Name)
+
+    if ([string]::IsNullOrWhiteSpace($Name) -or
+        $Name -notmatch '^[A-Za-z0-9 _.-]+\.jpg$' -or
+        [IO.Path]::GetFileName($Name) -cne $Name -or
+        $Name -in @('.', '..')) {
+        return $false
+    }
+    return $true
 }
 
 function Get-VersionFromJar {
@@ -1033,6 +1122,12 @@ try {
                 ([Environment]::GetEnvironmentVariable('UPDATE_TEST_INSTALLED')) `
                 (Get-RequiredEnvironmentValue 'UPDATE_TEST_LATEST'))
         }
+        'CopyCustomBackground' {
+            Copy-CustomBackground `
+                (Get-RequiredEnvironmentValue 'HELPER_BACKGROUND_NAME') `
+                (Get-RequiredEnvironmentValue 'HELPER_BACKGROUND_DIRECTORY') `
+                (Get-RequiredEnvironmentValue 'HELPER_BACKGROUND_TARGET')
+        }
         'DetectUnsafeNames' {
             $bad = [char[]](33, 34, 37, 38, 40, 41, 60, 62, 94, 124)
             $unsafe = Get-ChildItem -Directory |
@@ -1056,6 +1151,10 @@ try {
             if ($version) {
                 Write-Output "v$version"
             }
+        }
+        'GetCustomBackgrounds' {
+            Get-CustomBackgroundFiles (Get-RequiredEnvironmentValue 'HELPER_BACKGROUND_DIRECTORY') |
+                Select-Object -ExpandProperty Name
         }
         'GetMemorySummary' {
             $memory = [int64](Get-RequiredEnvironmentValue 'HELPER_MEMORY_MIB')
@@ -1141,6 +1240,24 @@ try {
         }
         'RenderProfile' {
             Render-Profile
+        }
+        'SelectCustomBackground' {
+            $selected = Select-CustomBackground `
+                (Get-RequiredEnvironmentValue 'HELPER_BACKGROUND_DIRECTORY') `
+                (Get-RequiredEnvironmentValue 'HELPER_BACKGROUND_TARGET')
+            if (-not $selected) {
+                exit 2
+            }
+        }
+        'ValidateCustomBackgroundName' {
+            $name = Get-RequiredEnvironmentValue 'HELPER_BACKGROUND_NAME'
+            $root = Get-RequiredEnvironmentValue 'HELPER_BACKGROUND_DIRECTORY'
+            if (-not (Test-SafeCustomBackgroundName $name)) {
+                throw 'Custom MIKO_BACKGROUND must use a safe JPG filename from mikohime\bg.'
+            }
+            if (-not (Test-Path -LiteralPath (Join-Path $root $name) -PathType Leaf)) {
+                throw "Custom JPG background was not found in mikohime\bg: $name"
+            }
         }
         'TestUnsafeInput' {
             $text = [IO.File]::ReadAllText((Get-RequiredEnvironmentValue 'HELPER_INPUT_PATH'))

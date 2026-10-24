@@ -824,10 +824,19 @@ echo 2. Mikosector
 echo 3. Mimikko
 echo 4. Gamma
 echo 5. Toadsector
+echo 6. Custom JPG from mikohime\bg
 echo X. Back to the main menu
-choice /c 12345X /n /m "Select an option: "
-if errorlevel 6 exit /b 0
-if errorlevel 5 (
+choice /c 123456X /n /m "Select an option: "
+if errorlevel 7 exit /b 0
+if errorlevel 6 (
+    set "HELPER_BACKGROUND_DIRECTORY=%CD%\mikohime\bg"
+    set "HELPER_BACKGROUND_TARGET=%CD%\mikohime\launcher_bg.jpg"
+    powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "!HelperScript!" -Action SelectCustomBackground
+    if errorlevel 2 goto :BackgroundMenu
+    if errorlevel 1 echo Failed to install the custom background.
+    pause
+    exit /b 0
+) else if errorlevel 5 (
     call :CopyBackground "mikohime\bg\toadsector.jpg" "Toadsector"
 ) else if errorlevel 4 (
     call :CopyBackground "mikohime\bg\gamma_bg.jpg" "Gamma"

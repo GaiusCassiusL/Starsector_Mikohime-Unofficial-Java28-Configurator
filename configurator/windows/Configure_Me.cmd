@@ -83,6 +83,7 @@ set "TransactionId=!RANDOM!_!RANDOM!_!RANDOM!"
 set "LockDirectory=.configure_me.lock"
 set "SimpleOutputFile=Miko_Simple.!TransactionId!.pending"
 set "LauncherOutputFile=Miko_Rouge.!TransactionId!.pending"
+set "SilentLauncherOutputFile=Miko_Silent.!TransactionId!.pending"
 set "LoggingOutputFile=mikohime\mikohime.properties.!TransactionId!.pending"
 set "InfoOutputFile=Miko_Info.!TransactionId!.pending"
 set "BackgroundOutputFile=mikohime\launcher_bg.!TransactionId!.pending"
@@ -648,6 +649,15 @@ if /I "!MIKO_BACKGROUND!"=="toadsector" (
     set "BackgroundSource=mikohime\bg\toadsector.jpg"
     set "BackgroundLabel=Toadsector"
 )
+if /I "!MIKO_BACKGROUND:~0,7!"=="custom:" (
+    set "BackgroundFileName=!MIKO_BACKGROUND:~7!"
+    set "HELPER_BACKGROUND_NAME=!BackgroundFileName!"
+    set "HELPER_BACKGROUND_DIRECTORY=%CD%\mikohime\bg"
+    powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "!HelperScript!" -Action ValidateCustomBackgroundName >nul
+    if errorlevel 1 goto :NonInteractiveFailed
+    set "BackgroundSource=mikohime\bg\!BackgroundFileName!"
+    set "BackgroundLabel=Custom (!BackgroundFileName!)"
+)
 if defined MIKO_BACKGROUND if not defined BackgroundSource goto :NonInteractiveFailed
 call "!GenerationModule!" NormalizeSelections
 if errorlevel 1 goto :NonInteractiveFailed
@@ -689,10 +699,11 @@ echo(
 echo Created or updated:
 echo   Miko_Simple.txt
 echo   Miko_Rouge.bat
+echo   Miko_Silent.bat
 echo   Miko_Info.txt
 echo   mikohime\mikohime.properties
 echo(
-echo Launch Starsector with Miko_Rouge.bat.
+echo Launch Starsector with Miko_Rouge.bat, or use Miko_Silent.bat without a terminal window.
 echo Administrator access is only needed when Windows protects the installation folder.
 echo(
 echo X. Return to the main menu
