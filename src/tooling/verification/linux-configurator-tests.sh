@@ -311,11 +311,21 @@ assert_exec "$root/Miko_Rouge.sh" "launcher executable under spaced path"
 
 # --- Background staging as part of the transaction --------------------------
 section "Background selection in transaction"
+assert_have "$CONFIG" 'Enter the number of the background to install, or B to return to the background menu:' "custom background picker explains number selection and back option"
+assert_have "$CONFIG" 'continue 2' "custom background cancellation returns to the background menu"
 root="$WORK/background"
 make_root "$root"
 run_gen "$root" MIKO_JAVA="$root/fakejava/java28" MIKO_HEAP_MIB=4096 MIKO_BACKGROUND=toadsector
 assert_true "[[ \"\$(cat '$root/mikohime/launcher_bg.jpg')\" == 'JPEG-toadsector' ]]" "Toadsector background committed"
 assert_have "$root/Miko_Info.txt" 'Launcher background: Toadsector' "info records Toadsector background selection"
+printf 'JPEG-custom\n' > "$root/mikohime/bg/custom background.JPG"
+if run_gen "$root" MIKO_JAVA="$root/fakejava/java28" MIKO_HEAP_MIB=4096 "MIKO_BACKGROUND=custom:custom background.JPG"; then
+    ok "custom JPG background generation succeeds with spaces and uppercase extension"
+else
+    bad "custom JPG background generation ($RUN_OUT)"
+fi
+assert_true "[[ \"\$(cat '$root/mikohime/launcher_bg.jpg')\" == 'JPEG-custom' ]]" "custom JPG background committed"
+assert_have "$root/Miko_Info.txt" 'Launcher background: Custom (custom background.JPG)' "info records custom background selection"
 
 # --- Native Linux flat layout and CRLF input handling ------------------------
 section "Flat Linux layout"

@@ -18,6 +18,8 @@ call :WriteLoggingPending
 if errorlevel 1 exit /b 1
 call :WriteLauncherPending
 if errorlevel 1 exit /b 1
+call :WriteSilentLauncherPending
+if errorlevel 1 exit /b 1
 if defined BackgroundSource (
     call :WriteBackgroundPending
     if errorlevel 1 exit /b 1
@@ -218,6 +220,16 @@ if errorlevel 1 exit /b 1
 call :ValidatePendingFile "!LauncherOutputFile!"
 exit /b %errorlevel%
 
+:WriteSilentLauncherPending
+type nul >"!SilentLauncherOutputFile!"
+type "mikohime\DefaultPath">>"!SilentLauncherOutputFile!"
+if errorlevel 1 exit /b 1
+>>"!SilentLauncherOutputFile!" echo(
+>>"!SilentLauncherOutputFile!" echo start "" "..\!JavaPath!\bin\javaw.exe" @..\Miko_Simple.txt
+>>"!SilentLauncherOutputFile!" echo exit /b
+call :ValidatePendingFile "!SilentLauncherOutputFile!"
+exit /b %errorlevel%
+
 :WriteBackgroundPending
 if not exist "!BackgroundSource!" exit /b 1
 copy /Y "!BackgroundSource!" "!BackgroundOutputFile!" >nul
@@ -233,6 +245,8 @@ REM ============================================================================
 call :ValidatePendingFile "!SimpleOutputFile!"
 if errorlevel 1 exit /b 1
 call :ValidatePendingFile "!LauncherOutputFile!"
+if errorlevel 1 exit /b 1
+call :ValidatePendingFile "!SilentLauncherOutputFile!"
 if errorlevel 1 exit /b 1
 call :ValidatePendingFile "!LoggingOutputFile!"
 if errorlevel 1 exit /b 1
@@ -256,6 +270,14 @@ if errorlevel 1 exit /b 1
 findstr /B /L /C:"-classpath" "!SimpleOutputFile!" >nul
 if errorlevel 1 exit /b 1
 findstr /L /C:"@..\Miko_Simple.txt" "!LauncherOutputFile!" >nul
+if errorlevel 1 exit /b 1
+findstr /L /C:"start" "!SilentLauncherOutputFile!" >nul
+if errorlevel 1 exit /b 1
+findstr /L /C:"..\!JavaPath!\bin\javaw.exe" "!SilentLauncherOutputFile!" >nul
+if errorlevel 1 exit /b 1
+findstr /L /C:"@..\Miko_Simple.txt" "!SilentLauncherOutputFile!" >nul
+if errorlevel 1 exit /b 1
+findstr /L /X /C:"exit /b" "!SilentLauncherOutputFile!" >nul
 if errorlevel 1 exit /b 1
 findstr /L /C:"log4j.appender.file.MaxBackupIndex=3" "!LoggingOutputFile!" >nul
 if errorlevel 1 exit /b 1
@@ -297,13 +319,15 @@ set "CommitTarget[3]=mikohime\mikohime.properties"
 set "CommitPending[3]=!LoggingOutputFile!"
 set "CommitTarget[4]=Miko_Info.txt"
 set "CommitPending[4]=!InfoOutputFile!"
-set "CommitFileCount=4"
-set "CommitTarget[5]="
-set "CommitPending[5]="
+set "CommitTarget[5]=Miko_Silent.bat"
+set "CommitPending[5]=!SilentLauncherOutputFile!"
+set "CommitFileCount=5"
+set "CommitTarget[6]="
+set "CommitPending[6]="
 if defined BackgroundSource (
-    set "CommitFileCount=5"
-    set "CommitTarget[5]=mikohime\launcher_bg.jpg"
-    set "CommitPending[5]=!BackgroundOutputFile!"
+    set "CommitFileCount=6"
+    set "CommitTarget[6]=mikohime\launcher_bg.jpg"
+    set "CommitPending[6]=!BackgroundOutputFile!"
 )
 
 for /L %%N in (1,1,!CommitFileCount!) do (
@@ -340,7 +364,7 @@ for /L %%N in (1,1,!CommitFileCount!) do if defined CommitBackup[%%N] del /Q "!C
 exit /b 0
 
 :CleanupPendingFiles
-del /Q "!SimpleOutputFile!" "!LauncherOutputFile!" "!LoggingOutputFile!" "!InfoOutputFile!" "!BackgroundOutputFile!" 2>nul
+del /Q "!SimpleOutputFile!" "!LauncherOutputFile!" "!SilentLauncherOutputFile!" "!LoggingOutputFile!" "!InfoOutputFile!" "!BackgroundOutputFile!" 2>nul
 del /Q "!JavaVersionOutput!" 2>nul
 del /Q "!InputTransferFile!" 2>nul
 exit /b 0

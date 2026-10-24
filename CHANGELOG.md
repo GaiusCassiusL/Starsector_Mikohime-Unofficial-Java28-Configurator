@@ -1,5 +1,36 @@
 # Changelog
 
+## [v0.8.1] - 2026-10-24
+
+### Added
+
+- Added the optional `Miko_Silent.bat` launcher, which starts the configured
+  game without opening a terminal window.
+- Added custom `.jpg` launcher background selection from `mikohime/bg` on
+  Windows and Linux.
+- Added non-interactive custom background selection through
+  `MIKO_BACKGROUND=custom:<jpg-filename>`.
+
+### Changed
+
+- Updated Fast Rendering, Linux Fast Rendering, FR Resource Cache,
+  StarsectorPrepatcher, and VRAM Optimizer links to their latest-release pages.
+- Updated the project version to 0.8.1.
+
+### Removed
+
+- No user-facing features were removed.
+
+### Fixed
+
+- Fixed the custom background picker by adding selection instructions, invalid
+  choice feedback, and a back option.
+
+### Compatibility
+
+- Custom `.jpg` background selection is supported on Windows and Linux.
+- The optional silent launcher is available on Windows.
+
 ## [v0.8.0] - 2026-09-10
 
 ### Added
