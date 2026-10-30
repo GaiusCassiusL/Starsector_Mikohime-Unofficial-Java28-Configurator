@@ -5,6 +5,15 @@ running Starsector with Java 17, Java 27, or Java 28 on 64-bit Windows and
 Linux. Redistribution of the Mikohime files is approved by the original mod
 author.
 
+## License
+
+Mikohime project-specific materials are available for noncommercial use and
+redistribution under the [PolyForm Noncommercial License 1.0.0](LICENSE).
+Sale or other commercial use of project-licensed materials is not authorized.
+The original Mikohime work is by Yue (Himemiko) and is included with his
+permission. Third-party components and assets retain their own licenses; see
+[Third-party notices](THIRD_PARTY_NOTICES.md).
+
 ## Released platform
 
 | Platform | Configurator | Generated launcher |

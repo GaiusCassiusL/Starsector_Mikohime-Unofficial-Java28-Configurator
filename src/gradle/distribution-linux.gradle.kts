@@ -87,7 +87,7 @@ val assembleLinuxDistribution = tasks.register<Sync>("assembleLinuxDistribution"
             unix("rwxr-xr-x")
         }
     }
-    from(repositoryRoot.files("README.md", "CHANGELOG.md"))
+    from(repositoryRoot.files("README.md", "CHANGELOG.md", "LICENSE", "THIRD_PARTY_NOTICES.md"))
     into("mikohime") {
         from(officialStageDir)
         from(rebuiltStageDir)
