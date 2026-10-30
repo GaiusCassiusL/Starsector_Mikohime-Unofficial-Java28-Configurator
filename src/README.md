@@ -4,6 +4,10 @@ This directory reconstructs the contents of `../mikohime` as a reproducible,
 verified multi-artifact build. It keeps verified upstream source separate from
 source recovered from the bundled bytecode.
 
+The project license and third-party component notices are maintained in the
+repository root (`../LICENSE` and `../THIRD_PARTY_NOTICES.md`). The release
+packages include both files.
+
 ## Build
 
 Prerequisites:

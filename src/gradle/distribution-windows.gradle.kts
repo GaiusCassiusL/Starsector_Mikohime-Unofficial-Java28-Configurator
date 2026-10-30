@@ -12,7 +12,7 @@ tasks.register<Sync>("assembleWindowsDistribution") {
     duplicatesStrategy = DuplicatesStrategy.FAIL
     into(distDir.map { it.dir("windows") })
     from(repositoryRoot.file("configurator/windows/Configure_Me.cmd"))
-    from(repositoryRoot.files("README.md", "CHANGELOG.md"))
+    from(repositoryRoot.files("README.md", "CHANGELOG.md", "LICENSE", "THIRD_PARTY_NOTICES.md"))
     into("mikohime") {
         from(officialStageDir)
         from(rebuiltStageDir)

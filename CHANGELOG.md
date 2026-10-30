@@ -1,5 +1,12 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- Added project noncommercial licensing and third-party notices to the
+  repository and Windows/Linux release packages.
+
 ## [v0.8.1] - 2026-10-24
 
 ### Added
