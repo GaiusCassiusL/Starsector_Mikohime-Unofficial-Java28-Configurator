@@ -85,10 +85,12 @@ if exist "starsector-core\fr.jar" (
 
 set "ResourceCacheAvailable=No"
 set "ResourceCacheVersion=version unknown"
+set "ResourceCacheAgent=!ResourceCacheAgentLegacy!"
 if exist "starsector-core\fr-resource-cache-agent.jar" (
     for %%F in ("starsector-core\fr-resource-cache-agent.jar") do if %%~zF GTR 0 (
         set "ResourceCacheAvailable=Yes"
-        call :GetJarVersion "starsector-core\fr-resource-cache-agent.jar" ResourceCacheVersion
+        call :GetJarVersion "starsector-core\fr-resource-cache-agent.jar" ResourceCacheVersion Strict
+        if /I not "!ResourceCacheVersion!"=="version unknown" for /f %%V in ('powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "!HelperScript!" -Action ResourceCacheUsesDefaultMemory 2^>nul') do if "%%V"=="Yes" set "ResourceCacheAgent=!ResourceCacheAgentPrefix!!ResourceCacheAgentSuffix!"
     )
 )
 
@@ -122,6 +124,7 @@ exit /b 0
 :GetJarVersion
 set "%~2=version unknown"
 set "HELPER_JAR_PATH=!CD!\%~1"
+set "HELPER_JAR_VERSION_STRICT=%~3"
 for /f "usebackq delims=" %%V in (`powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "!HelperScript!" -Action GetJarVersion 2^>nul`) do set "%~2=%%V"
 exit /b 0
 

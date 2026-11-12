@@ -456,6 +456,8 @@ FAST_RENDERING_DETECTED="No"
 FAST_RENDERING_AGENT=""
 RESOURCE_CACHE_AVAILABLE="No"
 RESOURCE_CACHE_DETECTED="No"
+RESOURCE_CACHE_VERSION="version unknown"
+RESOURCE_CACHE_MEMORY_OPTION=",memoryCacheMiB=128"
 VRAM_OPTIMIZER_AVAILABLE="No"
 
 detect_optional_components() {
@@ -479,8 +481,22 @@ detect_optional_components() {
 
     RESOURCE_CACHE_AVAILABLE="No"
     RESOURCE_CACHE_DETECTED="No"
+    RESOURCE_CACHE_VERSION="version unknown"
+    RESOURCE_CACHE_MEMORY_OPTION=",memoryCacheMiB=128"
     if [[ -s "$GAME_ROOT/fr-resource-cache-agent.jar" ]]; then
         RESOURCE_CACHE_DETECTED="Yes"
+        if command -v unzip >/dev/null 2>&1; then
+            RESOURCE_CACHE_VERSION="$(
+                unzip -p "$GAME_ROOT/fr-resource-cache-agent.jar" META-INF/MANIFEST.MF 2>/dev/null |
+                    tr -d '\r' |
+                    sed -nE 's/^(Implementation-Version|Bundle-Version|Specification-Version):[[:space:]]*//p' |
+                    head -n1
+            )"
+            [[ -n "$RESOURCE_CACHE_VERSION" ]] || RESOURCE_CACHE_VERSION="version unknown"
+        fi
+        if resource_cache_uses_default_memory "$RESOURCE_CACHE_VERSION"; then
+            RESOURCE_CACHE_MEMORY_OPTION=""
+        fi
         [[ "$FAST_RENDERING_AVAILABLE" == Yes ]] &&
             RESOURCE_CACHE_AVAILABLE="Yes"
     fi
@@ -608,6 +624,26 @@ refresh_environment() {
     detect_optional_components
     detect_system_resources
 }
+
+resource_cache_uses_default_memory() {
+    local version="$1" major minor patch prerelease
+    [[ "$version" =~ ^v?([0-9]+)\.([0-9]+)\.([0-9]+)(-([0-9A-Za-z.-]+))?(\+[0-9A-Za-z.-]+)?$ ]] || return 1
+    major="${BASH_REMATCH[1]}"
+    minor="${BASH_REMATCH[2]}"
+    patch="${BASH_REMATCH[3]}"
+    prerelease="${BASH_REMATCH[5]}"
+    ((${#major} <= 9 && ${#minor} <= 9 && ${#patch} <= 9)) || return 1
+    major=$((10#$major))
+    minor=$((10#$minor))
+    patch=$((10#$patch))
+
+    ((major > 0)) && return 0
+    ((minor > 6)) && return 0
+    ((minor < 6)) && return 1
+    ((patch > 0)) && return 0
+    [[ -z "$prerelease" ]]
+}
+
 # -----------------------------------------------------------------------------
 # FR Resource Cache installer (GitHub latest release)
 # -----------------------------------------------------------------------------
@@ -786,7 +822,7 @@ append_jvm_logger_options() {
 
 append_agents_and_classpath() {
     [[ "$RESOURCE_CACHE_STATUS" == Enabled ]] &&
-        sappend "-javaagent:fr-resource-cache-agent.jar=gameRoot=.,installRoot=.,cacheDir=./fr-resource-cache,flushDelaySeconds=30,memoryCacheMiB=128,maxFileSize=1048576"
+        sappend "-javaagent:fr-resource-cache-agent.jar=gameRoot=.,installRoot=.,cacheDir=./fr-resource-cache,flushDelaySeconds=30${RESOURCE_CACHE_MEMORY_OPTION},maxFileSize=1048576"
     [[ "$FAST_RENDERING_STATUS" == Enabled ]] &&
         sappend "$FAST_RENDERING_AGENT"
     if [[ "$FAST_RENDERING_STATUS" == Enabled ]]; then

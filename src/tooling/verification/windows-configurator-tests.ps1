@@ -446,6 +446,42 @@ try {
     Remove-Item -LiteralPath $frJar, $frAgentJar -Force -ErrorAction SilentlyContinue
     Remove-Item Env:MIKO_FAST_RENDERING -ErrorAction SilentlyContinue
 
+    New-TestJar $frJar 'META-INF/MANIFEST.MF' "Implementation-Version: 1.0.0`r`n"
+    $cacheJar = Join-Path $fixture 'starsector-core\fr-resource-cache-agent.jar'
+    $env:MIKO_FAST_RENDERING = '1'
+    $env:MIKO_RESOURCE_CACHE = '1'
+    $cachePrefix = '-javaagent:fr-resource-cache-agent.jar=gameRoot=.,installRoot=..,cacheDir=..\\fr-resource-cache,flushDelaySeconds=30'
+    $cacheCases = @(
+        @{ Name = 'older'; Version = '0.5.9'; Memory = ',memoryCacheMiB=128' }
+        @{ Name = 'boundary prerelease'; Version = '0.6.0-rc1'; Memory = ',memoryCacheMiB=128' }
+        @{ Name = 'boundary'; Version = '0.6.0'; Memory = '' }
+        @{ Name = 'newer'; Version = '0.6.1'; Memory = '' }
+        @{ Name = 'newer major'; Version = '1.0.0'; Memory = '' }
+        @{ Name = 'unknown'; Version = 'unknown'; Memory = ',memoryCacheMiB=128' }
+        @{ Name = 'unparseable'; Version = '999999999999999999999.6.0'; Memory = ',memoryCacheMiB=128' }
+        @{ Name = 'malformed suffix'; Version = '0.6.1broken'; Memory = ',memoryCacheMiB=128' }
+    )
+    foreach ($case in $cacheCases) {
+        Remove-Item -LiteralPath $cacheJar -Force -ErrorAction SilentlyContinue
+        New-TestJar $cacheJar 'META-INF/MANIFEST.MF' "Implementation-Version: $($case.Version)`r`n"
+        Push-Location $fixture
+        try {
+            $cacheOutput = (& cmd.exe /d /c 'call .\Configure_Me.cmd --non-interactive' 2>&1 | Out-String).Trim()
+            $cacheExit = $LASTEXITCODE
+        }
+        finally {
+            Pop-Location
+        }
+        Assert-True ($cacheExit -eq 0) "$($case.Name) Resource Cache generation succeeds ($cacheOutput)"
+        $generated = @(Get-Content -LiteralPath (Join-Path $fixture 'Miko_Simple.txt'))
+        $cacheAgents = @($generated | Where-Object { $_ -like '-javaagent:fr-resource-cache-agent.jar=*' })
+        $expected = "$cachePrefix$($case.Memory),maxFileSize=1048576"
+        Assert-True ($cacheAgents.Count -eq 1 -and $cacheAgents[0] -ceq $expected) "$($case.Name) Resource Cache argument matches exactly"
+        Assert-True ([array]::IndexOf($generated, $expected) -lt [array]::IndexOf($generated, '-javaagent:fr.jar')) "$($case.Name) Resource Cache agent precedes Fast Rendering"
+    }
+    Remove-Item -LiteralPath $frJar, $cacheJar -Force
+    Remove-Item Env:MIKO_FAST_RENDERING, Env:MIKO_RESOURCE_CACHE -ErrorAction SilentlyContinue
+
     [IO.File]::WriteAllText((Join-Path $fixture 'mikohime\bg\Community background.JPG'), 'CUSTOM BACKGROUND')
     $env:MIKO_JAVA = 'jdk-test-28'
     $env:MIKO_JAVA_VERSION = '28'

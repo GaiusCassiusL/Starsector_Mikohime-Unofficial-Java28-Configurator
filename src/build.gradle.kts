@@ -5,7 +5,7 @@ import java.util.zip.ZipEntry
 import org.gradle.api.GradleException
 import org.gradle.language.jvm.tasks.ProcessResources
 
-version = "0.8.2"
+version = "0.8.3"
 
 // ---------------------------------------------------------------------------
 // Mikohime Source Code Test - reproducible multi-module rebuild

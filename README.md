@@ -46,6 +46,8 @@ When Recommended setup detects Fast Rendering without FR Resource Cache, it
 offers to download, validate, install, and enable the latest cache release.
 Declining the download or encountering an installation failure leaves Fast
 Rendering enabled and continues with Resource Cache disabled.
+For Resource Cache 0.6.0 and newer, the configurator uses the agent's default
+memory cache setting; older or unrecognized versions retain the 128 MiB setting.
 
 For Fast Rendering 1.0.0 and newer, install `fr.jar` in `starsector-core`; the
 configurator uses it as both the agent and a classpath entry. Older versions
