@@ -2,10 +2,25 @@
 
 ## [Unreleased]
 
+## [v0.8.3] - 2026-11-11
+
+### Changed
+
+- Select the FR Resource Cache agent argument by version, omitting
+  `memoryCacheMiB=128` for version 0.6.0 and newer while retaining it for older
+  or unrecognized versions.
+
+## [v0.8.2] - 2026-11-11
+
 ### Added
 
 - Added project noncommercial licensing and third-party notices to the
   repository and Windows/Linux release packages.
+
+### Changed
+
+- Updated Fast Rendering detection and launcher generation for the Windows
+  1.0.0+ and Linux single-agent releases while retaining legacy support.
 
 ## [v0.8.1] - 2026-10-24
 

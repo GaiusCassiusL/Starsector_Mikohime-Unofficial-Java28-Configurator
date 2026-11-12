@@ -71,18 +71,26 @@ exit /b 1
 :DetectOptionalComponents
 set "FastRenderingAvailable=No"
 set "FastRenderingVersion=version unknown"
-if exist "starsector-core\fr.jar" if exist "starsector-core\fr.agent.jar" (
-    set "FastRenderingAvailable=Yes"
+set "FastRenderingAgent=-javaagent:fr.agent.jar"
+if exist "starsector-core\fr.jar" (
     call :GetJarVersion "starsector-core\fr.jar" FastRenderingVersion
-    if /I "!FastRenderingVersion!"=="version unknown" call :GetJarVersion "starsector-core\fr.agent.jar" FastRenderingVersion
+    if /I "!FastRenderingVersion!"=="version unknown" if exist "starsector-core\fr.agent.jar" call :GetJarVersion "starsector-core\fr.agent.jar" FastRenderingVersion
+    if /I not "!FastRenderingVersion!"=="version unknown" for /f "tokens=1 delims=." %%V in ("!FastRenderingVersion:~1!") do if %%V GEQ 1 set "FastRenderingAgent=-javaagent:fr.jar"
+    if /I "!FastRenderingAgent!"=="-javaagent:fr.jar" (
+        set "FastRenderingAvailable=Yes"
+    ) else if exist "starsector-core\fr.agent.jar" (
+        set "FastRenderingAvailable=Yes"
+    )
 )
 
 set "ResourceCacheAvailable=No"
 set "ResourceCacheVersion=version unknown"
+set "ResourceCacheAgent=!ResourceCacheAgentLegacy!"
 if exist "starsector-core\fr-resource-cache-agent.jar" (
     for %%F in ("starsector-core\fr-resource-cache-agent.jar") do if %%~zF GTR 0 (
         set "ResourceCacheAvailable=Yes"
-        call :GetJarVersion "starsector-core\fr-resource-cache-agent.jar" ResourceCacheVersion
+        call :GetJarVersion "starsector-core\fr-resource-cache-agent.jar" ResourceCacheVersion Strict
+        if /I not "!ResourceCacheVersion!"=="version unknown" for /f %%V in ('powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "!HelperScript!" -Action ResourceCacheUsesDefaultMemory 2^>nul') do if "%%V"=="Yes" set "ResourceCacheAgent=!ResourceCacheAgentPrefix!!ResourceCacheAgentSuffix!"
     )
 )
 
@@ -116,6 +124,7 @@ exit /b 0
 :GetJarVersion
 set "%~2=version unknown"
 set "HELPER_JAR_PATH=!CD!\%~1"
+set "HELPER_JAR_VERSION_STRICT=%~3"
 for /f "usebackq delims=" %%V in (`powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "!HelperScript!" -Action GetJarVersion 2^>nul`) do set "%~2=%%V"
 exit /b 0
 

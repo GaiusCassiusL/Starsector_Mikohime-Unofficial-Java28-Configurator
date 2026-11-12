@@ -82,6 +82,12 @@ add_fast_rendering() {
     printf 'FRA\n' > "$1/fr.agent.jar"
 }
 add_resource_cache() { printf 'RC\n' > "$1/fr-resource-cache-agent.jar"; }
+add_resource_cache_version() {
+    local root="$1" version="$2" manifest="$WORK/resource-cache-manifest.txt"
+    printf 'Manifest-Version: 1.0\r\nImplementation-Version: %s\r\n\r\n' "$version" > "$manifest"
+    python3 -c 'import sys, zipfile; archive = zipfile.ZipFile(sys.argv[1], "w"); archive.write(sys.argv[2], "META-INF/MANIFEST.MF"); archive.close()' \
+        "$root/fr-resource-cache-agent.jar" "$manifest"
+}
 
 add_prepatcher() {
     # add_prepatcher DIR FOLDER VERSION_JSON_FRAGMENT
@@ -246,6 +252,47 @@ run_gen "$root" MIKO_JAVA="$root/fakejava/java28" MIKO_HEAP_MIB=4096 MIKO_FAST_R
 assert_have "$root/Miko_Simple.txt" '-javaagent:fr.agent.jar' "complete Fast Rendering pair is enabled"
 assert_have "$root/Miko_Simple.txt" '-javaagent:fr-resource-cache-agent.jar' "Resource Cache is enabled with Fast Rendering"
 assert_have "$root/Miko_Simple.txt" '-classpath fr.jar:' "fr.jar is first on the classpath"
+
+root="$WORK/frsingle"
+make_root "$root"
+printf '%s' 'UEsDBBQAAAAAAFmoa13wMPf/SAAAAEgAAAAUAAAATUVUQS1JTkYvTUFOSUZFU1QuTUZNYW5pZmVzdC1WZXJzaW9uOiAxLjANClByZW1haW4tQ2xhc3M6IGNvbS5nZW5pci5yZW5kZXJlci5hZ2VudC5BZ2VudA0KDQpQSwECFAAUAAAAAABZqGtd8DD3/0gAAABIAAAAFAAAAAAAAAAAAAAAgAEAAAAATUVUQS1JTkYvTUFOSUZFU1QuTUZQSwUGAAAAAAEAAQBCAAAAegAAAAAA' | base64 -d > "$root/fr.jar"
+add_resource_cache "$root"
+run_gen "$root" MIKO_JAVA="$root/fakejava/java28" MIKO_HEAP_MIB=4096 MIKO_FAST_RENDERING=1 MIKO_RESOURCE_CACHE=1
+simple="$root/Miko_Simple.txt"
+assert_havex "$simple" '-javaagent:fr.jar' "single-jar Fast Rendering uses fr.jar as agent"
+assert_nothave "$simple" '-javaagent:fr.agent.jar' "single-jar Fast Rendering does not use the legacy agent"
+assert_have "$simple" '-classpath fr.jar:' "single-jar Fast Rendering includes fr.jar on the classpath"
+assert_order "$simple" '-javaagent:fr-resource-cache-agent.jar' '-javaagent:fr.jar' "resource cache precedes the single-jar agent"
+assert_order "$simple" '-javaagent:fr.jar' '-classpath fr.jar:' "single-jar agent precedes classpath"
+
+section "Resource Cache memory option by version"
+for cache_case in \
+    '0.5.9|,memoryCacheMiB=128' \
+    '0.6.0-rc1|,memoryCacheMiB=128' \
+    '0.6.0|' \
+    '0.6.1|' \
+    '1.0.0|' \
+    'unknown|,memoryCacheMiB=128' \
+    '0.6.1broken|,memoryCacheMiB=128'; do
+    version="${cache_case%%|*}"
+    memory_option="${cache_case#*|}"
+    root="$WORK/resource-cache-${version//[^A-Za-z0-9]/_}"
+    make_root "$root"
+    printf '%s' 'UEsDBBQAAAAAAFmoa13wMPf/SAAAAEgAAAAUAAAATUVUQS1JTkYvTUFOSUZFU1QuTUZNYW5pZmVzdC1WZXJzaW9uOiAxLjANClByZW1haW4tQ2xhc3M6IGNvbS5nZW5pci5yZW5kZXJlci5hZ2VudC5BZ2VudA0KDQpQSwECFAAUAAAAAABZqGtd8DD3/0gAAABIAAAAFAAAAAAAAAAAAAAAgAEAAAAATUVUQS1JTkYvTUFOSUZFU1QuTUZQSwUGAAAAAAEAAQBCAAAAegAAAAAA' | base64 -d > "$root/fr.jar"
+    add_resource_cache_version "$root" "$version"
+    run_gen "$root" MIKO_JAVA="$root/fakejava/java28" MIKO_HEAP_MIB=4096 MIKO_FAST_RENDERING=1 MIKO_RESOURCE_CACHE=1
+    simple="$root/Miko_Simple.txt"
+    expected="-javaagent:fr-resource-cache-agent.jar=gameRoot=.,installRoot=.,cacheDir=./fr-resource-cache,flushDelaySeconds=30${memory_option},maxFileSize=1048576"
+    assert_havex "$simple" "$expected" "Resource Cache $version writes the exact argument"
+    assert_order "$simple" "$expected" '-javaagent:fr.jar' "Resource Cache $version keeps agent ordering"
+done
+
+root="$WORK/frsingle"
+simple="$root/Miko_Simple.txt"
+printf 'stale legacy agent\n' > "$root/fr.agent.jar"
+run_gen "$root" MIKO_JAVA="$root/fakejava/java28" MIKO_HEAP_MIB=4096 MIKO_FAST_RENDERING=1
+assert_havex "$simple" '-javaagent:fr.jar' "single-jar agent wins over a stale legacy agent"
+assert_nothave "$simple" '-javaagent:fr.agent.jar' "stale legacy agent is not enabled"
 
 # --- Prepatcher is unsupported ----------------------------------------------
 section "Prepatcher excluded"

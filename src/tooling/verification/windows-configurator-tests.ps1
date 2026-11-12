@@ -26,6 +26,25 @@ function Invoke-Helper {
     return $output
 }
 
+function New-TestJar {
+    param([string]$Path, [string]$Entry, [string]$Content)
+    Add-Type -AssemblyName System.IO.Compression
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $jar = [IO.Compression.ZipFile]::Open($Path, [IO.Compression.ZipArchiveMode]::Create)
+    try {
+        $writer = [IO.StreamWriter]::new($jar.CreateEntry($Entry).Open())
+        try {
+            $writer.Write($Content)
+        }
+        finally {
+            $writer.Dispose()
+        }
+    }
+    finally {
+        $jar.Dispose()
+    }
+}
+
 try {
     Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
     New-Item -ItemType Directory -Path $work | Out-Null
@@ -383,6 +402,86 @@ try {
         }
     }
 
+    $frJar = Join-Path $fixture 'starsector-core\fr.jar'
+    $frAgentJar = Join-Path $fixture 'starsector-core\fr.agent.jar'
+    $env:MIKO_FAST_RENDERING = '1'
+    $frCases = @(
+        @{ Name = '1.0.0rc1 single jar'; Entry = 'com/genir/renderer/Version.class'; Content = "v1.0.0rc1`0"; LegacyAgent = $false; Expected = '-javaagent:fr.jar' }
+        @{ Name = '1.0.0 with stale legacy agent'; Entry = 'com/genir/renderer/Version.class'; Content = "v1.0.0rc1`0"; LegacyAgent = $true; Expected = '-javaagent:fr.jar' }
+        @{ Name = '1.0.0 prerelease manifest'; Entry = 'META-INF/MANIFEST.MF'; Content = "Implementation-Version: 1.0.0-rc1`r`n"; LegacyAgent = $false; Expected = '-javaagent:fr.jar' }
+        @{ Name = '1.0.2 single jar'; Entry = 'com/genir/renderer/Version.class'; Content = "v1.0.2`0"; LegacyAgent = $false; Expected = '-javaagent:fr.jar' }
+        @{ Name = '1.1.0 with stale legacy agent'; Entry = 'META-INF/MANIFEST.MF'; Content = "Implementation-Version: 1.1.0`r`n"; LegacyAgent = $true; Expected = '-javaagent:fr.jar' }
+        @{ Name = '2.0.0 single jar'; Entry = 'com/genir/renderer/Version.class'; Content = "v2.0.0`0"; LegacyAgent = $false; Expected = '-javaagent:fr.jar' }
+        @{ Name = 'older version with agent'; Entry = 'com/genir/renderer/Version.class'; Content = "v0.8.7`0"; LegacyAgent = $true; Expected = '-javaagent:fr.agent.jar' }
+        @{ Name = 'older version without agent'; Entry = 'com/genir/renderer/Version.class'; Content = "v0.8.7`0"; LegacyAgent = $false; Expected = '' }
+        @{ Name = 'unknown version with agent'; Entry = 'META-INF/MANIFEST.MF'; Content = "Manifest-Version: 1.0`r`n"; LegacyAgent = $true; Expected = '-javaagent:fr.agent.jar' }
+        @{ Name = 'unknown version without agent'; Entry = 'META-INF/MANIFEST.MF'; Content = "Manifest-Version: 1.0`r`n"; LegacyAgent = $false; Expected = '' }
+    )
+    foreach ($case in $frCases) {
+        Remove-Item -LiteralPath $frJar, $frAgentJar -Force -ErrorAction SilentlyContinue
+        New-TestJar $frJar $case.Entry $case.Content
+        if ($case.LegacyAgent) {
+            New-TestJar $frAgentJar 'META-INF/MANIFEST.MF' "Manifest-Version: 1.0`r`n"
+        }
+        Push-Location $fixture
+        try {
+            $frOutput = (& cmd.exe /d /c 'call .\Configure_Me.cmd --non-interactive' 2>&1 | Out-String).Trim()
+            $frExit = $LASTEXITCODE
+        }
+        finally {
+            Pop-Location
+        }
+        Assert-True ($frExit -eq 0) "$($case.Name) generation succeeds ($frOutput)"
+        $generated = Get-Content -LiteralPath (Join-Path $fixture 'Miko_Simple.txt')
+        $frAgents = @($generated | Where-Object { $_ -in @('-javaagent:fr.jar', '-javaagent:fr.agent.jar') })
+        if ($case.Expected) {
+            Assert-True ($frAgents.Count -eq 1 -and $frAgents[0] -eq $case.Expected) "$($case.Name) selects the correct agent"
+            Assert-True (@($generated | Where-Object { $_ -like '-classpath fr.jar;*' }).Count -eq 1) "$($case.Name) includes fr.jar on the classpath"
+        }
+        else {
+            Assert-True ($frAgents.Count -eq 0) "$($case.Name) does not enable Fast Rendering"
+            Assert-True (@($generated | Where-Object { $_ -like '-classpath fr.jar;*' }).Count -eq 0) "$($case.Name) excludes fr.jar from the classpath"
+        }
+    }
+    Remove-Item -LiteralPath $frJar, $frAgentJar -Force -ErrorAction SilentlyContinue
+    Remove-Item Env:MIKO_FAST_RENDERING -ErrorAction SilentlyContinue
+
+    New-TestJar $frJar 'META-INF/MANIFEST.MF' "Implementation-Version: 1.0.0`r`n"
+    $cacheJar = Join-Path $fixture 'starsector-core\fr-resource-cache-agent.jar'
+    $env:MIKO_FAST_RENDERING = '1'
+    $env:MIKO_RESOURCE_CACHE = '1'
+    $cachePrefix = '-javaagent:fr-resource-cache-agent.jar=gameRoot=.,installRoot=..,cacheDir=..\\fr-resource-cache,flushDelaySeconds=30'
+    $cacheCases = @(
+        @{ Name = 'older'; Version = '0.5.9'; Memory = ',memoryCacheMiB=128' }
+        @{ Name = 'boundary prerelease'; Version = '0.6.0-rc1'; Memory = ',memoryCacheMiB=128' }
+        @{ Name = 'boundary'; Version = '0.6.0'; Memory = '' }
+        @{ Name = 'newer'; Version = '0.6.1'; Memory = '' }
+        @{ Name = 'newer major'; Version = '1.0.0'; Memory = '' }
+        @{ Name = 'unknown'; Version = 'unknown'; Memory = ',memoryCacheMiB=128' }
+        @{ Name = 'unparseable'; Version = '999999999999999999999.6.0'; Memory = ',memoryCacheMiB=128' }
+        @{ Name = 'malformed suffix'; Version = '0.6.1broken'; Memory = ',memoryCacheMiB=128' }
+    )
+    foreach ($case in $cacheCases) {
+        Remove-Item -LiteralPath $cacheJar -Force -ErrorAction SilentlyContinue
+        New-TestJar $cacheJar 'META-INF/MANIFEST.MF' "Implementation-Version: $($case.Version)`r`n"
+        Push-Location $fixture
+        try {
+            $cacheOutput = (& cmd.exe /d /c 'call .\Configure_Me.cmd --non-interactive' 2>&1 | Out-String).Trim()
+            $cacheExit = $LASTEXITCODE
+        }
+        finally {
+            Pop-Location
+        }
+        Assert-True ($cacheExit -eq 0) "$($case.Name) Resource Cache generation succeeds ($cacheOutput)"
+        $generated = @(Get-Content -LiteralPath (Join-Path $fixture 'Miko_Simple.txt'))
+        $cacheAgents = @($generated | Where-Object { $_ -like '-javaagent:fr-resource-cache-agent.jar=*' })
+        $expected = "$cachePrefix$($case.Memory),maxFileSize=1048576"
+        Assert-True ($cacheAgents.Count -eq 1 -and $cacheAgents[0] -ceq $expected) "$($case.Name) Resource Cache argument matches exactly"
+        Assert-True ([array]::IndexOf($generated, $expected) -lt [array]::IndexOf($generated, '-javaagent:fr.jar')) "$($case.Name) Resource Cache agent precedes Fast Rendering"
+    }
+    Remove-Item -LiteralPath $frJar, $cacheJar -Force
+    Remove-Item Env:MIKO_FAST_RENDERING, Env:MIKO_RESOURCE_CACHE -ErrorAction SilentlyContinue
+
     [IO.File]::WriteAllText((Join-Path $fixture 'mikohime\bg\Community background.JPG'), 'CUSTOM BACKGROUND')
     $env:MIKO_JAVA = 'jdk-test-28'
     $env:MIKO_JAVA_VERSION = '28'
@@ -434,6 +533,7 @@ finally {
     Remove-Item Env:MIKO_HEAP_MIB -ErrorAction SilentlyContinue
     Remove-Item Env:MIKO_LOGGING -ErrorAction SilentlyContinue
     Remove-Item Env:MIKO_BACKGROUND -ErrorAction SilentlyContinue
+    Remove-Item Env:MIKO_FAST_RENDERING -ErrorAction SilentlyContinue
     Remove-Item Env:UPDATE_TEST_AVAILABLE -ErrorAction SilentlyContinue
     Remove-Item Env:UPDATE_TEST_INSTALLED -ErrorAction SilentlyContinue
     Remove-Item Env:UPDATE_TEST_LATEST -ErrorAction SilentlyContinue

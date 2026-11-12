@@ -22,6 +22,7 @@ param(
         'RecoverOpenAlAddon',
         'RemoveDirectory',
         'RenderProfile',
+        'ResourceCacheUsesDefaultMemory',
         'SelectCustomBackground',
         'ValidateCustomBackgroundName',
         'TestUnsafeInput',
@@ -139,7 +140,7 @@ function Test-SafeCustomBackgroundName {
 }
 
 function Get-VersionFromJar {
-    param([string]$Path)
+    param([string]$Path, [bool]$Strict = $false)
 
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     $jar = [IO.Compression.ZipFile]::OpenRead($Path)
@@ -158,6 +159,17 @@ function Get-VersionFromJar {
                 '(?im)^(?:Implementation-Version|Bundle-Version|Specification-Version):\s*([^\r\n]+)'
             )
             if ($attribute.Success) {
+                if ($Strict) {
+                    $version = [regex]::Match(
+                        $attribute.Groups[1].Value,
+                        '^\s*v?(\d+\.\d+\.\d+(?:\.\d+)?(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)\s*$',
+                        'IgnoreCase'
+                    )
+                    if ($version.Success) {
+                        return $version.Groups[1].Value
+                    }
+                    return $null
+                }
                 $version = [regex]::Match(
                     $attribute.Groups[1].Value,
                     '\d+(?:\.\d+){1,3}(?:[-+][0-9A-Za-z.-]+)?'
@@ -1122,6 +1134,17 @@ try {
                 ([Environment]::GetEnvironmentVariable('UPDATE_TEST_INSTALLED')) `
                 (Get-RequiredEnvironmentValue 'UPDATE_TEST_LATEST'))
         }
+        'ResourceCacheUsesDefaultMemory' {
+            $text = [Environment]::GetEnvironmentVariable('ResourceCacheVersion')
+            $match = [regex]::Match($text, '^v?(\d+\.\d+\.\d+(?:\.\d+)?)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$', 'IgnoreCase')
+            $version = $null
+            if ($match.Success -and [version]::TryParse($match.Groups[1].Value, [ref]$version)) {
+                $minimum = [version]'0.6.0'
+                if ($version -gt $minimum -or ($version -eq $minimum -and -not $match.Groups[2].Success)) {
+                    Write-Output 'Yes'
+                }
+            }
+        }
         'CopyCustomBackground' {
             Copy-CustomBackground `
                 (Get-RequiredEnvironmentValue 'HELPER_BACKGROUND_NAME') `
@@ -1147,7 +1170,8 @@ try {
             Get-VramOptimizer
         }
         'GetJarVersion' {
-            $version = Get-VersionFromJar (Get-RequiredEnvironmentValue 'HELPER_JAR_PATH')
+            $version = Get-VersionFromJar (Get-RequiredEnvironmentValue 'HELPER_JAR_PATH') `
+                ([Environment]::GetEnvironmentVariable('HELPER_JAR_VERSION_STRICT') -eq 'Strict')
             if ($version) {
                 Write-Output "v$version"
             }
