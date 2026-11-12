@@ -47,6 +47,11 @@ offers to download, validate, install, and enable the latest cache release.
 Declining the download or encountering an installation failure leaves Fast
 Rendering enabled and continues with Resource Cache disabled.
 
+For Fast Rendering 1.0.0 and newer, install `fr.jar` in `starsector-core`; the
+configurator uses it as both the agent and a classpath entry. Older versions
+also require `fr.agent.jar` in that directory. The configurator writes the
+selected agent to `Miko_Simple.txt`.
+
 The Windows configurator can download the optional OpenAL Soft 1.25.1 audio
 add-on from its pinned GitHub release. Manage it from **Manage Java and optional
 components**. The archive checksum and contents are validated before
@@ -111,10 +116,10 @@ Use `MIKO_BACKGROUND=custom:<jpg-filename>` to select a custom JPG from
 
 Linux uses Starsector's native flat installation layout. Do not create a
 `starsector-core` directory. To use Fast Rendering, download the
-[Linux fork](https://github.com/jontyab/starsector-render/releases/tag/v0.8.7-port-78c1c903)
-and place both `fr.jar` and `fr.agent.jar` beside `starsector.sh`. The
-configurator detects any non-empty pair of these files and lets you choose
-whether to enable them; it does not enforce a specific version or checksum.
+[Linux fork](https://github.com/jontyab/starsector-render/releases/latest)
+and place its files beside `starsector.sh`. The 1.0.0 fork uses `fr.jar` as
+both agent and classpath entry; older forks require `fr.jar` and
+`fr.agent.jar`. Detection requires `unzip` and does not enforce a checksum.
 Do not use the original Windows Fast Rendering package on Linux.
 
 FR Resource Cache requires Fast Rendering. Place
@@ -147,8 +152,9 @@ src/build/dist/windows/
 src/build/dist/linux/
 ```
 
-Versioned release archives are generated under `src/build/packages/` by
-`packageWindowsDistribution` and `packageLinuxDistribution`.
+To produce both versioned release archives under `src/build/packages/`, run
+`gradlew.bat packageWindowsDistribution packageLinuxDistribution --no-daemon`
+from `src` on Windows, or run the same tasks with `./gradlew` on Linux.
 
 The Gradle build reconstructs 15 JARs, verifies the Windows-equivalent output,
 and assembles platform-specific native libraries. Linux natives are

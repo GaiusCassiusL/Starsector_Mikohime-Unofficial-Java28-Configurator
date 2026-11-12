@@ -453,6 +453,7 @@ install_java() {
 # -----------------------------------------------------------------------------
 FAST_RENDERING_AVAILABLE="No"
 FAST_RENDERING_DETECTED="No"
+FAST_RENDERING_AGENT=""
 RESOURCE_CACHE_AVAILABLE="No"
 RESOURCE_CACHE_DETECTED="No"
 VRAM_OPTIMIZER_AVAILABLE="No"
@@ -460,9 +461,20 @@ VRAM_OPTIMIZER_AVAILABLE="No"
 detect_optional_components() {
     FAST_RENDERING_AVAILABLE="No"
     FAST_RENDERING_DETECTED="No"
-    if [[ -s "$GAME_ROOT/fr.jar" && -s "$GAME_ROOT/fr.agent.jar" ]]; then
-        FAST_RENDERING_DETECTED="Yes"
-        FAST_RENDERING_AVAILABLE="Yes"
+    FAST_RENDERING_AGENT=""
+    if [[ -s "$GAME_ROOT/fr.jar" ]]; then
+        if ! command -v unzip >/dev/null 2>&1; then
+            warn "Fast Rendering detection requires unzip; install it and rerun the configurator."
+        elif unzip -p "$GAME_ROOT/fr.jar" META-INF/MANIFEST.MF 2>/dev/null |
+            tr -d '\r' | grep -Eq '^Premain-Class:[[:space:]]*com\.genir\.renderer\.agent\.Agent[[:space:]]*$'; then
+            FAST_RENDERING_AGENT="-javaagent:fr.jar"
+            FAST_RENDERING_DETECTED="Yes"
+            FAST_RENDERING_AVAILABLE="Yes"
+        elif [[ -s "$GAME_ROOT/fr.agent.jar" ]]; then
+            FAST_RENDERING_AGENT="-javaagent:fr.agent.jar"
+            FAST_RENDERING_DETECTED="Yes"
+            FAST_RENDERING_AVAILABLE="Yes"
+        fi
     fi
 
     RESOURCE_CACHE_AVAILABLE="No"
@@ -776,7 +788,7 @@ append_agents_and_classpath() {
     [[ "$RESOURCE_CACHE_STATUS" == Enabled ]] &&
         sappend "-javaagent:fr-resource-cache-agent.jar=gameRoot=.,installRoot=.,cacheDir=./fr-resource-cache,flushDelaySeconds=30,memoryCacheMiB=128,maxFileSize=1048576"
     [[ "$FAST_RENDERING_STATUS" == Enabled ]] &&
-        sappend '-javaagent:fr.agent.jar'
+        sappend "$FAST_RENDERING_AGENT"
     if [[ "$FAST_RENDERING_STATUS" == Enabled ]]; then
         sappend "-classpath fr.jar:$BASE_CLASSPATH"
     else
@@ -989,7 +1001,7 @@ validate_agent_order() {
         [[ -n "$rc" && "$rc" -lt "$cpline" ]] || return 1
     fi
     if [[ "$FAST_RENDERING_STATUS" == Enabled ]]; then
-        fr="$(grep -nFx -- '-javaagent:fr.agent.jar' "$SIMPLE_PENDING" | head -n1 | cut -d: -f1)"
+        fr="$(grep -nFx -- "$FAST_RENDERING_AGENT" "$SIMPLE_PENDING" | head -n1 | cut -d: -f1)"
         [[ -n "$fr" && "$fr" -lt "$cpline" ]] || return 1
         [[ -z "$rc" || "$rc" -lt "$fr" ]] || return 1
     fi
@@ -1524,7 +1536,7 @@ choose_rendering() {
             RESOURCE_CACHE_STATUS="Disabled"
             printf '%sFast Rendering was not found.%s\n' \
                 "${ColorYellow:-}" "${ColorReset:-}"
-            printf 'Download and extract fr-linux.zip beside starsector.sh:\n  %s\n' "$FastRenderingReleasesUrl"
+            printf 'Download and extract the Linux fork beside starsector.sh:\n  %s\n' "$FastRenderingReleasesUrl"
             printf 'FR Resource Cache remains disabled until the Linux fork is installed.\n'
             printf '  C. Continue\n  D. Open Linux fork download page\n  B. Back\n  X. Cancel\n'
             prompt_line "Select an option: "

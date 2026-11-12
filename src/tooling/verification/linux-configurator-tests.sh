@@ -247,6 +247,23 @@ assert_have "$root/Miko_Simple.txt" '-javaagent:fr.agent.jar' "complete Fast Ren
 assert_have "$root/Miko_Simple.txt" '-javaagent:fr-resource-cache-agent.jar' "Resource Cache is enabled with Fast Rendering"
 assert_have "$root/Miko_Simple.txt" '-classpath fr.jar:' "fr.jar is first on the classpath"
 
+root="$WORK/frsingle"
+make_root "$root"
+printf '%s' 'UEsDBBQAAAAAAFmoa13wMPf/SAAAAEgAAAAUAAAATUVUQS1JTkYvTUFOSUZFU1QuTUZNYW5pZmVzdC1WZXJzaW9uOiAxLjANClByZW1haW4tQ2xhc3M6IGNvbS5nZW5pci5yZW5kZXJlci5hZ2VudC5BZ2VudA0KDQpQSwECFAAUAAAAAABZqGtd8DD3/0gAAABIAAAAFAAAAAAAAAAAAAAAgAEAAAAATUVUQS1JTkYvTUFOSUZFU1QuTUZQSwUGAAAAAAEAAQBCAAAAegAAAAAA' | base64 -d > "$root/fr.jar"
+add_resource_cache "$root"
+run_gen "$root" MIKO_JAVA="$root/fakejava/java28" MIKO_HEAP_MIB=4096 MIKO_FAST_RENDERING=1 MIKO_RESOURCE_CACHE=1
+simple="$root/Miko_Simple.txt"
+assert_havex "$simple" '-javaagent:fr.jar' "single-jar Fast Rendering uses fr.jar as agent"
+assert_nothave "$simple" '-javaagent:fr.agent.jar' "single-jar Fast Rendering does not use the legacy agent"
+assert_have "$simple" '-classpath fr.jar:' "single-jar Fast Rendering includes fr.jar on the classpath"
+assert_order "$simple" '-javaagent:fr-resource-cache-agent.jar' '-javaagent:fr.jar' "resource cache precedes the single-jar agent"
+assert_order "$simple" '-javaagent:fr.jar' '-classpath fr.jar:' "single-jar agent precedes classpath"
+
+printf 'stale legacy agent\n' > "$root/fr.agent.jar"
+run_gen "$root" MIKO_JAVA="$root/fakejava/java28" MIKO_HEAP_MIB=4096 MIKO_FAST_RENDERING=1
+assert_havex "$simple" '-javaagent:fr.jar' "single-jar agent wins over a stale legacy agent"
+assert_nothave "$simple" '-javaagent:fr.agent.jar' "stale legacy agent is not enabled"
+
 # --- Prepatcher is unsupported ----------------------------------------------
 section "Prepatcher excluded"
 root="$WORK/prepatcher"

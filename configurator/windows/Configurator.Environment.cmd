@@ -71,10 +71,16 @@ exit /b 1
 :DetectOptionalComponents
 set "FastRenderingAvailable=No"
 set "FastRenderingVersion=version unknown"
-if exist "starsector-core\fr.jar" if exist "starsector-core\fr.agent.jar" (
-    set "FastRenderingAvailable=Yes"
+set "FastRenderingAgent=-javaagent:fr.agent.jar"
+if exist "starsector-core\fr.jar" (
     call :GetJarVersion "starsector-core\fr.jar" FastRenderingVersion
-    if /I "!FastRenderingVersion!"=="version unknown" call :GetJarVersion "starsector-core\fr.agent.jar" FastRenderingVersion
+    if /I "!FastRenderingVersion!"=="version unknown" if exist "starsector-core\fr.agent.jar" call :GetJarVersion "starsector-core\fr.agent.jar" FastRenderingVersion
+    if /I not "!FastRenderingVersion!"=="version unknown" for /f "tokens=1 delims=." %%V in ("!FastRenderingVersion:~1!") do if %%V GEQ 1 set "FastRenderingAgent=-javaagent:fr.jar"
+    if /I "!FastRenderingAgent!"=="-javaagent:fr.jar" (
+        set "FastRenderingAvailable=Yes"
+    ) else if exist "starsector-core\fr.agent.jar" (
+        set "FastRenderingAvailable=Yes"
+    )
 )
 
 set "ResourceCacheAvailable=No"
